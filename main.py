@@ -5,7 +5,7 @@ from common.hydra.util import init_hydra
 
 
 
-@hydra.main(version_base=None, config_path="config")
+@hydra.main(version_base=None, config_path="hydra-config")
 def main_fn(cfg: DictConfig) -> None:
     obj = OmegaConf.to_object(cfg)
     print(obj)
