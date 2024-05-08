@@ -1,0 +1,5 @@
+dataloader:
+  name: simple
+model:
+  model_name: two_tower
+  model_version: 1.0
