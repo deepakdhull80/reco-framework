@@ -62,3 +62,5 @@ For any questions, issues, or feature requests, please [open an issue](https://g
 The Recommender System Generic Framework is developed and maintained by [Deepak Dhull]. We would like to thank all contributors for their valuable contributions to the project.
 
 
+Reference:
+- [DLRM - Meta](https://github.com/facebookresearch/dlrm )
