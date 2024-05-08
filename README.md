@@ -32,6 +32,8 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - `docs/`: Documentation directory containing detailed information about the framework and its components.
 
 ## TODO's:
+- [ ] Setup hydra config
+    Structure based upon the components: (like train, eval, model, dataloader, inference)
 - [ ] Create abstract classes
 - [ ] Create feature config class
 - [ ] Create model config class
