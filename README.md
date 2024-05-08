@@ -33,9 +33,17 @@ Follow these steps to get started with the Recommender System Generic Framework:
 
 ## TODO's:
 - [ ] Create abstract classes
-- [ ] Read config from yaml file and create its parser class
-- [ ] 
-
+- [ ] Create feature config class
+- [ ] Create model config class
+- [ ] Read config from yaml file and create its parser class.
+- [ ] Modularize data reading and processing.
+- [ ] Add dataloader class
+- [ ] Add training Strategies: local system, remote
+    Accelerate, all_reduce for dpp multi gpu. Single gpu strategy.
+- [ ] Add trainer class
+- [ ] Tracking and logging with wandb, tensorboard.
+- [ ] Add evaluator for ranking and retrieval objectives.
+- [ ] Add pytorch lightening support.
 ## Contribution Guidelines
 We welcome contributions from the community to enhance the features and usability of the Recommender System Generic Framework. If you'd like to contribute, please follow these guidelines:
 
