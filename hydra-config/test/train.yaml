@@ -2,6 +2,7 @@ defaults:
   - dataloader: simple
   - model: two_tower
   - data: default
+  - trainer: default
 
 data:
   dataset_name: test
