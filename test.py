@@ -1,18 +1,15 @@
-import warnings
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from common.hydra.util import init_hydra
 from common.pipeline_config import PipelineConfig
-
-################################################################
-warnings.filterwarnings("ignore", category=UserWarning)
-################################################################
+from common.constants import ModelType
 
 
 @hydra.main(version_base=None, config_path="hydra-config")
 def main_fn(cfg: DictConfig) -> None:
     obj = OmegaConf.to_object(cfg)
+    print(obj)
     pipeline_cfg = PipelineConfig.parse_obj(obj)
     print(pipeline_cfg)
 

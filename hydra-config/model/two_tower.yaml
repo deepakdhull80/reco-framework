@@ -1,2 +1,3 @@
-model_name: two_tower
-model_version: 1.0
+name: two_tower
+version: 1.0
+type: retrieval
