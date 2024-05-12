@@ -32,11 +32,10 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - `docs/`: Documentation directory containing detailed information about the framework and its components.
 
 ## TODO's:
-- [ ] Setup hydra config
-    Structure based upon the components: (like train, eval, model, dataloader, inference)
 - [ ] Create abstract classes
 - [ ] Create feature config class
 - [ ] Create model config class
+- [ ] Create Stats class: compute feature stats, like min, max, mean of numerical features.
 - [ ] Read config from yaml file and create its parser class.
 - [ ] Modularize data reading and processing.
 - [ ] Add dataloader class
@@ -46,6 +45,11 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - [ ] Tracking and logging with wandb, tensorboard.
 - [ ] Add evaluator for ranking and retrieval objectives.
 - [ ] Add pytorch lightening support.
+
+## Completed:
+- [x] Setup hydra config
+    Structure based upon the components: (like train, eval, model, dataloader, inference)
+
 ## Contribution Guidelines
 We welcome contributions from the community to enhance the features and usability of the Recommender System Generic Framework. If you'd like to contribute, please follow these guidelines:
 
