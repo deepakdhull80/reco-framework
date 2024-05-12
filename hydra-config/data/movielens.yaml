@@ -1,0 +1,4 @@
+dataset_name: MovieLensDataset
+description: "MovieLens open source dataset"
+base_path: /Users/deepak.dhull/practice/recsys/data/ml-1m
+file_format: pq

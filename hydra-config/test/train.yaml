@@ -1,11 +1,8 @@
 defaults:
   - dataloader: simple
   - model: two_tower
-  - data: default
+  - data: movielens
   - trainer: default
 
-data:
-  dataset_name: test
-  base_path: "~/practice"
-
+pipeline_name: simple
 env: pytorch
