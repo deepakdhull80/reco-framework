@@ -7,15 +7,7 @@ class SimpleTrainerPipeline(TrainerPipeline):
     def __init__(self,*args, **kwargs):
         super().__init__(*args, **kwargs)
     
-    def _get_train_data_paths(self):
-        raise NotImplementedError()
-
-    def _get_val_data_paths(self) -> List[str]:
-        raise NotImplementedError()
     
-    def _get_extra_day_val_data_paths(self) -> List[str]:
-        raise NotImplementedError()
-
     def execute(self):
         # initialise trackers
         # get paths

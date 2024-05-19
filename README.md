@@ -32,9 +32,7 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - `docs/`: Documentation directory containing detailed information about the framework and its components.
 
 ## TODO's:
-- [ ] Create abstract classes
-- [ ] Create feature config class
-- [ ] Create model config class
+- [ ] Setup SimpleTrainingPipeline *
 - [ ] Create Stats class: compute feature stats, like min, max, mean of numerical features.
 - [ ] Read config from yaml file and create its parser class.
 - [ ] Modularize data reading and processing.
@@ -49,7 +47,9 @@ Follow these steps to get started with the Recommender System Generic Framework:
 ## Completed:
 - [x] Setup hydra config
     Structure based upon the components: (like train, eval, model, dataloader, inference)
-
+- [x] Create abstract classes
+- [x] Create feature config class
+- [x] Create model config class
 ## Contribution Guidelines
 We welcome contributions from the community to enhance the features and usability of the Recommender System Generic Framework. If you'd like to contribute, please follow these guidelines:
 

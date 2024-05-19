@@ -1,1 +1,1 @@
-from common.trainer.training_strategy import TrainingStrategy
+from common.trainer.training_strategy import TrainingStrategyConfig

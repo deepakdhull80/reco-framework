@@ -5,6 +5,9 @@ from omegaconf import DictConfig, OmegaConf
 from common.hydra.util import init_hydra
 from common.pipeline_config import PipelineConfig
 from common.pipeline_builder import TrainerPipeline, PipelineOptions
+from common.trainer.simple_training_strategy import SimpleTrainingStrategy
+from two_tower.model_builder import TwoTowerBuilder
+from common.data.dataloader import SimpleDataLoaderStrategy
 
 ################################################################
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -14,7 +17,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 def execute(pipeline_config: PipelineConfig):
     
     # Model builder
-    model_builder = None
+    model_config = pipeline_config.model
+    model_builder = TwoTowerBuilder(model_config)
     
     # Pipeline Builder
     if pipeline_config.pipeline_name == PipelineOptions.SIMPLE:
@@ -23,10 +27,18 @@ def execute(pipeline_config: PipelineConfig):
     else:
         raise ModuleNotFoundError(f'Trainer pipeline not found: %s' % pipeline_config.pipeline_name)
     
+    # Training Strategy
+    training_strategy = SimpleTrainingStrategy(
+        model_builder, pipeline_config
+    )
+    
+    # Dataloader
+    dataloader_strategy = SimpleDataLoaderStrategy(pipeline_cfg=pipeline_config)
+    
     pipeline: TrainerPipeline = pipeline_cls(
         model_builder,
-        pipeline_config.trainer,
-        pipeline_config.dataloader
+        training_strategy,
+        dataloader_strategy
     )
     
     # start pipeline

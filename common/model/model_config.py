@@ -1,11 +1,13 @@
 import pandas as pd
 from pydantic import BaseModel
 from common.constants import ModelType
+from common.data.feature_config import FeatureConfig
 
 class ModelConfig(BaseModel):
     name: str
     version: float = 0.0
     type: ModelType
+    features: FeatureConfig
     
     
     def transformation_step(self, data: pd.DataFrame):
