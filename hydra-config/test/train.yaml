@@ -5,4 +5,5 @@ defaults:
   - trainer: default
 
 pipeline_name: simple
+epochs: 1
 env: pytorch

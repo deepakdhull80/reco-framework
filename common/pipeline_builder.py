@@ -1,4 +1,7 @@
 from typing import List
+from common.data.dataloader import DataLoaderStrategy
+from common.model import ModelBuilder
+from common.trainer.training_strategy import TrainingStrategy
 
 class PipelineOptions:
     SIMPLE = 'simple'
@@ -10,9 +13,9 @@ class TrainerPipeline:
 
     def __init__(
             self,
-            model_builder,
+            model_builder: ModelBuilder,
             training_strategy,
-            data_loader_strategy,
+            data_loader_strategy: DataLoaderStrategy,
     ):
         self.model_builder = model_builder
         self.training_strategy = training_strategy

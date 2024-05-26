@@ -1,5 +1,8 @@
+import os
 import warnings
 import hydra
+import logging
+
 from omegaconf import DictConfig, OmegaConf
 
 from common.hydra.util import init_hydra
@@ -11,11 +14,18 @@ from common.data.dataloader import SimpleDataLoaderStrategy
 
 ################################################################
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# todo: instead of static file fix with dynamic based upon timestamp.
+log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs/train.log')
+logging.basicConfig(filename=log_file_path,
+                    filemode='w',
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.DEBUG)
 ################################################################
 
 
 def execute(pipeline_config: PipelineConfig):
-    
     # Model builder
     model_config = pipeline_config.model
     model_builder = TwoTowerBuilder(model_config)
@@ -27,13 +37,16 @@ def execute(pipeline_config: PipelineConfig):
     else:
         raise ModuleNotFoundError(f'Trainer pipeline not found: %s' % pipeline_config.pipeline_name)
     
-    # Training Strategy
-    training_strategy = SimpleTrainingStrategy(
-        model_builder, pipeline_config
-    )
-    
     # Dataloader
     dataloader_strategy = SimpleDataLoaderStrategy(pipeline_cfg=pipeline_config)
+    
+    # Training Strategy
+    training_strategy = SimpleTrainingStrategy(
+        model_builder = model_builder, 
+        dataloader_strategy = dataloader_strategy, 
+        trainer_config = pipeline_config.trainer,
+        model_config = model_config
+    )
     
     pipeline: TrainerPipeline = pipeline_cls(
         model_builder,
@@ -47,7 +60,7 @@ def execute(pipeline_config: PipelineConfig):
 @hydra.main(version_base=None, config_path="hydra-config")
 def main_fn(cfg: DictConfig) -> None:
     obj = OmegaConf.to_object(cfg)
-    pipeline_cfg = PipelineConfig.parse_obj(obj)
+    pipeline_cfg = PipelineConfig.model_validate(obj)
     print(pipeline_cfg)    
     execute(pipeline_cfg)
 

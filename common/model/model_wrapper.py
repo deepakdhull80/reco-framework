@@ -20,3 +20,6 @@ class ModelWrapper(nn.Module):
     
     def inference_models(self):
         raise NotImplementedError()
+    
+    def get_optimizer_clz(self):
+        return torch.optim.Adam

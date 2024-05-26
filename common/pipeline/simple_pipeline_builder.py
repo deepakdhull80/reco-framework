@@ -9,18 +9,20 @@ class SimpleTrainerPipeline(TrainerPipeline):
     
     
     def execute(self):
-        # initialise trackers
-        # get paths
-        # Start training
-        # calculate eval metrics and save them
+        train_dl, val_dl = self.data_loader_strategy.get_dataloader()
+        model = self.model_builder.build()
+        self.train(train_dl, val_dl, model)
         return
 
     def train(
             self,
-            train_data_paths: List[str],
-            val_data_paths: List[str]
+            train_dl,
+            val_dl,
+            model
     ) :
-        raise NotImplementedError()
+        self.training_strategy.fit(train_dl, val_dl, model)
+        
+        
 
     def eval_model(self, model, inference_result):
         raise NotImplementedError()

@@ -8,7 +8,9 @@ class ModelConfig(BaseModel):
     version: float = 0.0
     type: ModelType
     features: FeatureConfig
-    
+    optimizer_clz: str = 'adam'
+    lr: float = 1e-3
+    beta: float = 0.99
     
     def transformation_step(self, data: pd.DataFrame):
         return data

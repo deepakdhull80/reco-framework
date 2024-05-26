@@ -35,7 +35,7 @@ class DataLoaderStrategy:
     def __init__(self, pipeline_cfg) -> None:
         self.pipeline_cfg = pipeline_cfg
     
-    def get_dataloader(self):
+    def get_dataloader(self) -> Tuple[DataLoader, DataLoader]:
         raise NotImplementedError()
 
 
@@ -59,7 +59,7 @@ class SimpleDataLoaderStrategy(DataLoaderStrategy):
         
         return SimpleDataGenerator('train', self.pipeline_cfg), SimpleDataGenerator('val', self.pipeline_cfg)
     
-    def get_dataloader(self):
+    def get_dataloader(self)-> Tuple[DataLoader, DataLoader]:
         train_gen, val_gen = self.get_generator()
         mini_batch_size = self.pipeline_cfg.dataloader.mini_batch_size
         batch_size = self.pipeline_cfg.dataloader.batch_size
