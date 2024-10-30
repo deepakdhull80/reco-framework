@@ -41,9 +41,7 @@ class ALSMovielensDataConfig(DataConfig):
     
     def createFeaturesConfig(self, feature_list):
         for feature in feature_list:
-            self.features_cfg.append(
-                FeatureConfig(name=feature['name'], kind=FeatureKind.get_feature_kind(feature['type']))
-            )
+            self.features_cfg[feature['name']] = FeatureConfig(name=feature['name'], kind=FeatureKind.get_feature_kind(feature['type']))
 
 class ALSMovielensConfig(Config):
     exp_name: str = "als_movie_lens"

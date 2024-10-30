@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 class FeatureKind(Enum):
     NUMERICAL: str = "numerical"
@@ -18,14 +18,15 @@ class FeatureKind(Enum):
 class FeatureConfig:
     # kind: FeatureKind = FeatureKind.CATEGORICAL
     # name: str = None
-    def __init__(self, name: str, kind: FeatureKind = FeatureKind.CATEGORICAL) -> None:
+    def __init__(self, name: str, kind: FeatureKind = FeatureKind.CATEGORICAL, default: int = 0) -> None:
         self.name = name
         self.kind = kind
+        self.default = default
 
 class DataConfig:
     src_data_path: str = None
     rating_threshold: float = 0
-    features_cfg: List[FeatureConfig] = []
+    features_cfg: Dict[str, FeatureConfig] = {}
 
 class ModelConfig:
     model_name: str = None
