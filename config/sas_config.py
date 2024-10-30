@@ -1,25 +1,22 @@
 from config.config import Config, ModelConfig, DataConfig, FeatureConfig, FeatureKind
 
 
-class ALSMovielensModelConfig(ModelConfig):
-    rank: int = 32
-    max_iter: int = 30
-    user_col: str = 'userId'
-    item_col: str = 'movieId'
-    target_col: str = 'target'
-    block_size: int = 4096
+class SAS4RecModelConfig(ModelConfig):
     model_path: str = "checkpoint"
+    
+    # model parameters
+    items_cardinality: int = 1_000_000
+    max_length: int = 100
+    # - MHA parameters
+    dim: int = 32
+    n_layers: int = 2
+    head: int = 1
+    ff_proj: list = [32, 32]
+    dropout: float = 0.3
+    
 
-class ALSMovielensDataConfig(DataConfig):
+class SAS4RecDataConfig(DataConfig):
     src_data_path: str = "/Users/deepakdhull/data/recsys/ml-25m/pq"
-    rating_threshold: float = 3.0
-    train_size: float = 0.8
-    spark_cfg: dict = {
-            "spark.executor.memory": "4g",
-            "spark.driver.memory": "4g",
-            "spark.executor.memoryOverhead": "512",
-            "spark.driver.memoryOverhead": "512"
-        }
     
     def __init__(self):
         super().__init__()
@@ -45,7 +42,7 @@ class ALSMovielensDataConfig(DataConfig):
                 FeatureConfig(name=feature['name'], kind=FeatureKind.get_feature_kind(feature['type']))
             )
 
-class ALSMovielensConfig(Config):
-    exp_name: str = "als_movie_lens"
-    data_cfg: DataConfig = ALSMovielensDataConfig()
-    model_cfg: ModelConfig = ALSMovielensModelConfig()
+class SAS4RecConfig(Config):
+    exp_name: str = "sas4rec_movie_lens"
+    data_cfg = SAS4RecDataConfig()
+    model_cfg = SAS4RecModelConfig()

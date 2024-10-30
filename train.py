@@ -1,5 +1,5 @@
-from config.als_movielens import ALSMovielensConfig
-from models.als_model import ALSTrainer
+from config import ALSMovielensConfig
+from models import ALSTrainer
 
 
 if __name__ == '__main__':

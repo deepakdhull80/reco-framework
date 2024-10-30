@@ -5,7 +5,7 @@ from pyspark.sql.types import DoubleType
 from pyspark.ml.recommendation import ALS
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
-from config.als_movielens import ALSMovielensConfig
+from config import ALSMovielensConfig
 from utils.spark_helper import SparkSingleton
 from data.movielens_data import prepare_als_data
 

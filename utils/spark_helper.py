@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 
-from config import Config
+from config.config import Config
 
 class SparkSingleton:
     _instance = None
