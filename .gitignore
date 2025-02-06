@@ -162,3 +162,4 @@ outputs/
 files/
 logs/
 *.logs
+*.ipynb

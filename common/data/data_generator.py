@@ -16,13 +16,14 @@ class SimpleDataGenerator(IterableDataset):
         
         self.df: pd.DataFrame = None
         if pipeline_cfg.data.file_format == 'pq':
+            ## TODO: add functionality to read chunks instead of all data in memory: for large scale solutions.
             self.df = pd.read_parquet(paths)
         else:
             raise NotImplementedError()
         
         self.mini_batch_size = pipeline_cfg.dataloader.mini_batch_size
         
-        self.total_steps = min(self.df.shape[0], getattr(pipeline_cfg.dataloader, f'total_{kind}_steps'))
+        self.total_steps = min(self.df.shape[0]//self.mini_batch_size, getattr(pipeline_cfg.dataloader, f'total_{kind}_steps'))
         self.start = 0
         self.preprocess_fn = pipeline_cfg.model.preprocessing_fn
     
@@ -32,6 +33,14 @@ class SimpleDataGenerator(IterableDataset):
     
     def __iter__(self):
         while self.start < self.total_steps:
-            batch = self.get_batch(self.start)
-            self.start += 1
-            yield self.preprocess_fn(batch)
+            try:
+                batch = self.get_batch(self.start)
+                self.start += 1
+                yield self.preprocess_fn(batch)
+            except Exception as e:
+                print(e)
+                print(self.start, self.total_steps, self.df.shape)
+                # continue
+                break
+        
+        self.start = 0

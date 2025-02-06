@@ -32,14 +32,11 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - `docs/`: Documentation directory containing detailed information about the framework and its components.
 
 ## TODO's:
-- [ ] Setup SimpleTrainingPipeline *
 - [ ] Create Stats class: compute feature stats, like min, max, mean of numerical features.
 - [ ] Read config from yaml file and create its parser class.
 - [ ] Modularize data reading and processing.
-- [ ] Add dataloader class
 - [ ] Add training Strategies: local system, remote
     Accelerate, all_reduce for dpp multi gpu. Single gpu strategy.
-- [ ] Add trainer class
 - [ ] Tracking and logging with wandb, tensorboard.
 - [ ] Add evaluator for ranking and retrieval objectives.
 - [ ] Add pytorch lightening support.
@@ -50,6 +47,10 @@ Follow these steps to get started with the Recommender System Generic Framework:
 - [x] Create abstract classes
 - [x] Create feature config class
 - [x] Create model config class
+- [x] Setup SimpleTrainingPipeline *
+- [x] Add dataloader class
+- [x] Add trainer class
+
 ## Contribution Guidelines
 We welcome contributions from the community to enhance the features and usability of the Recommender System Generic Framework. If you'd like to contribute, please follow these guidelines:
 

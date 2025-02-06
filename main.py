@@ -16,6 +16,7 @@ from common.data.dataloader import SimpleDataLoaderStrategy
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # todo: instead of static file fix with dynamic based upon timestamp.
+os.makedirs("logs", exist_ok=True)
 log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs/train.log')
 logging.basicConfig(filename=log_file_path,
                     filemode='w',

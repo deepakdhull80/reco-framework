@@ -24,15 +24,33 @@ class SimpleTrainingStrategy(TrainingStrategy):
         metrics = defaultdict(int)
         model.train()
         
-        optimizer_clz = model.get_optimizer_clz()
-        optimizer: torch.optim.Optimizer = optimizer_clz(model.parameters(), self.model_config.lr)
+        optimizer_clz = model.get_optimizer_clz(self.model_config.optimizer_clz)
+        sparse_optimizer_clz = model.get_optimizer_clz(self.model_config.sparse_optimizer_clz)
+        
+        sparse_params = []
+        non_sparse_params = []
+        for n, p in model.named_parameters():
+            if "embedding_table" in n:
+                sparse_params.append(p)
+            else:
+                non_sparse_params.append(p)
+        
+        sparse_optimizer: torch.optim.Optimizer = sparse_optimizer_clz(sparse_params, self.model_config.sparse_lr)
+        optimizer: torch.optim.Optimizer = optimizer_clz(non_sparse_params, self.model_config.lr)
+        sparse_optimizer.zero_grad()
         optimizer.zero_grad()
+        
         
         for idx, batch in enumerate(train_dl):
             optimizer.zero_grad()
+            sparse_optimizer.zero_grad()
+            
             _loss, _metrics = model.train_step(batch)
             _loss.backward()
+            
             optimizer.step()
+            sparse_optimizer.step()
+            
             loss += _loss.cpu().item()
             metrics, loss = self.update_metrics(idx, metrics, _metrics, loss)
             if (idx+1) % self.log_kth_train_step == 0:
@@ -50,11 +68,11 @@ class SimpleTrainingStrategy(TrainingStrategy):
     @torch.no_grad()
     def val(self, epoch, val_dl, model: nn.Module):
         loss = 0
-        metrics = defaultdict(0)
+        metrics = defaultdict(int)
         model.eval()
         
         for idx, batch in enumerate(val_dl):
-            _loss, _metrics = model.train_step(batch)
+            _loss, _metrics = model.val_step(batch)
         
             loss += _loss.cpu().item()
             metrics, loss = self.update_metrics(idx, metrics, _metrics, loss)
@@ -70,14 +88,15 @@ class SimpleTrainingStrategy(TrainingStrategy):
         return loss, metrics
     
     
-    def update_metrics(batch_idx, metric, _b, loss_sum):
+    def update_metrics(self, batch_idx, metric, _b, loss_sum):
         for k,v in _b.items():
             metric[k] += v
-            metric[k] /= (batch_idx+1)
+            # metric[k] /= (batch_idx+1)
         
         return metric, loss_sum/(batch_idx+1)
     
     
     def print_log(self, epoch, idx, loss, metrics, train: bool = True):
         step_type = 'TRAIN' if train else 'EVAL'
-        logger.info(f"[{step_type}], Epoch: {epoch}, Step: {idx}, Loss: {loss:.4f} Metrics: {metrics}")
+        m = {k:f"{v/(1+idx):.4f}" for k,v in metrics.items()}
+        logger.info(f"[{step_type}], Epoch: {epoch}, Step: {idx}, Loss: {loss:.4f} Metrics: {m}")

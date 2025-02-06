@@ -1,2 +1,2 @@
 strategy: one_gpu
-epochs: 1
+epochs: 10

@@ -20,6 +20,9 @@ class SimpleTrainerPipeline(TrainerPipeline):
             val_dl,
             model
     ) :
+        # TODO: device transfer with global variables
+        device = "cpu"
+        model.to(device)
         self.training_strategy.fit(train_dl, val_dl, model)
         
         

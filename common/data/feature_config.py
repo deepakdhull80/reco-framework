@@ -38,15 +38,19 @@ class Feature(BaseModel):
     f_type: FeatureType
     tower: TowerType
     f_dtype: DataType
+    dim: int = 32
+    is_datetime: bool = False
 
 class NumericalFeature(Feature):
     f_type: FeatureType = FeatureType.NUMERICAL
 
 class CategoricalFeature(Feature):
     f_type: FeatureType = FeatureType.CATEGORICAL
+    cardinality: int = 10
 
 class VectorFeature(Feature):
     f_type: FeatureType = FeatureType.VECTOR
+    dim: int = 32
 
 class CommonFeature(Feature):
     f_type: FeatureType = FeatureType.COMMON

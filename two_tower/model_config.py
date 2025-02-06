@@ -2,7 +2,9 @@ import pandas as pd
 from common.model import ModelConfig
 
 class TwoTowerConfig(ModelConfig):
-    optimizer_clz: str = 'adam'
+    optimizer_clz: str = 'Adam'
+    sparse_optimizer_clz: str = 'Adam'
+    sparse_lr: float = 1e-3
     lr: float = 1e-3
     beta: float = 0.99
     

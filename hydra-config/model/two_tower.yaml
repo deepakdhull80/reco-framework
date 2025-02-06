@@ -1,40 +1,42 @@
 name: two_tower
 version: 1.0
 type: retrieval
+sparse_optimizer_clz: SparseAdam
+optimizer_clz: Adam
 
 features:
   numerical_features:
-    - {name: Timestamp, tower: query, f_dtype: long}
+    - {name: Timestamp, tower: query, f_dtype: long, is_datetime: true}
 
   categorical_features:
-    - {name: UserID, tower: query, f_dtype: long}
-    - {name: GenderValue, tower: query, f_dtype: int32}
-    - {name: AgeValue, tower: query, f_dtype: int32}
-    - {name: OccupationValue, tower: query, f_dtype: int32}
-    - {name: OccupationValue, tower: query, f_dtype: int32}
-    - {name: MovieID, tower: item, f_dtype: long}
+    - {name: UserID, tower: query, f_dtype: long, cardinality: 100000}
+    - {name: GenderValue, tower: query, f_dtype: int32, cardinality: 3}
+    - {name: AgeValue, tower: query, f_dtype: int32, cardinality: 100}
+    # - {name: OccupationValue, tower: query, f_dtype: int32, cardinality: 100000}
+    # - {name: OccupationValue, tower: query, f_dtype: int32}
+    - {name: MovieID, tower: item, f_dtype: long, cardinality: 100000}
     # genres
-    - {name: Crime, tower: item, f_dtype: bool}
-    - {name: Western, tower: item, f_dtype: bool}
-    - {name: Thriller, tower: item, f_dtype: bool}
-    - {name: War, tower: item, f_dtype: bool}
-    - {name: Horror, tower: item, f_dtype: bool}
-    - {name: Drama, tower: item, f_dtype: bool}
-    - {name: Action, tower: item, f_dtype: bool}
-    - {name: Film-Noir, tower: item, f_dtype: bool}
-    - {name: Animation, tower: item, f_dtype: bool}
-    - {name: Documentary, tower: item, f_dtype: bool}
-    - {name: Adventure, tower: item, f_dtype: bool}
-    - {name: Comedy, tower: item, f_dtype: bool}
-    - {name: Fantasy, tower: item, f_dtype: bool}
-    - {name: Musical, tower: item, f_dtype: bool}
-    - {name: Children, tower: item, f_dtype: bool}
-    - {name: Sci-Fi, tower: item, f_dtype: bool}
-    - {name: Romance, tower: item, f_dtype: bool}
-    - {name: Mystery, tower: item, f_dtype: bool}
+    - {name: Crime, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Western, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Thriller, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: War, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Horror, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Drama, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Action, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Film-Noir, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Animation, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Documentary, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Adventure, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Comedy, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Fantasy, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Musical, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Children, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Sci-Fi, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Romance, tower: item, f_dtype: bool, cardinality: 2}
+    - {name: Mystery, tower: item, f_dtype: bool, cardinality: 2}
 
   vector_features:
-    - {name: embedding, tower: item, f_dtype: float32}
+    - {name: embedding, tower: item, f_dtype: float32, dim: 100}
 
   common_features:
     - {name: Rating, f_dtype: int32}
