@@ -16,10 +16,13 @@ class TrainerPipeline:
             model_builder: ModelBuilder,
             training_strategy,
             data_loader_strategy: DataLoaderStrategy,
+            device: str, 
+            *args, **kwargs
     ):
         self.model_builder = model_builder
         self.training_strategy = training_strategy
         self.data_loader_strategy = data_loader_strategy
+        self.device = device
 
     def _get_train_data_paths(self):
         raise NotImplementedError()

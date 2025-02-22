@@ -13,7 +13,6 @@ from two_tower.model_config import TwoTowerConfig
 class ItemTower(nn.Module):
     def __init__(self, model_config: TwoTowerConfig) -> None:
         super().__init__()
-        print(model_config)
         self.item_features = model_config.get_item_features()
         self.item_id_name = model_config.item_id_name
         i = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name == self.item_id_name), self.item_features))[0]
@@ -178,20 +177,20 @@ class QueryTower(nn.Module):
         return query_embedding
 
 class TwoTowerModel(ModelWrapper):
-    def __init__(self, model_config: TwoTowerConfig) -> None:
-        super().__init__(model_config)
+    def __init__(self, model_config: TwoTowerConfig, device: str) -> None:
+        super().__init__(model_config, device)
         self.model_config = model_config
         self.target_id_name = model_config.target_id_name
         self.item_tower = ItemTower(model_config)
         self.query_tower = QueryTower(model_config)
         self.label_threshold = 3
+        self.device = device
     
     def _transform_device(self, batch: nn.ModuleDict) -> nn.ModuleDict:
         # TODO: need to fix this based upon multi-gpu, device transfer with global variables
-        device = "cpu"
         for key, value in batch.items():
             if isinstance(value, torch.Tensor):
-                batch[key] = value.to(device)
+                batch[key] = value.to(self.device)
             else:
                 batch[key] = value  # Preserve non-tensor values as it is
         return batch

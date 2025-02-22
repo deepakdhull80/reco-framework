@@ -10,7 +10,7 @@ class SimpleTrainerPipeline(TrainerPipeline):
     
     def execute(self):
         train_dl, val_dl = self.data_loader_strategy.get_dataloader()
-        model = self.model_builder.build()
+        model = self.model_builder.build(device=self.device)
         self.train(train_dl, val_dl, model)
         return
 
@@ -20,9 +20,7 @@ class SimpleTrainerPipeline(TrainerPipeline):
             val_dl,
             model
     ) :
-        # TODO: device transfer with global variables
-        device = "cpu"
-        model.to(device)
+        model.to(self.device)
         self.training_strategy.fit(train_dl, val_dl, model)
         
         

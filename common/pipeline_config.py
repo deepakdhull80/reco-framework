@@ -14,11 +14,12 @@ class PipelineConfig(BaseModel):
     data: DataConfig
     dataloader: DataLoaderConfig
     trainer: TrainingStrategyConfig
+    device: str
     
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         
         if kwargs['dataloader']['name'] == DataLoaderType.SIMPLE:
-            self.dataloader = SimpleDataLoaderConfig.parse_obj(kwargs['dataloader'])
+            self.dataloader = SimpleDataLoaderConfig.model_validate(kwargs['dataloader'])
         else:
             raise ModuleNotFoundError(f'Dataloader strategy not found: %s' % kwargs['dataloader'])

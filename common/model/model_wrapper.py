@@ -5,9 +5,10 @@ import torch.nn as nn
 from common.model.model_config import ModelConfig
 
 class ModelWrapper(nn.Module):
-    def __init__(self, model_config: ModelConfig) -> None:
+    def __init__(self, model_config: ModelConfig, device: str) -> None:
         super().__init__()
         self.model_config = model_config
+        self.device = device
     
     def forward(self, batch: nn.ModuleDict) -> torch.Tensor:
         raise NotImplementedError()

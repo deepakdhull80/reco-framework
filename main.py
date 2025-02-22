@@ -52,7 +52,8 @@ def execute(pipeline_config: PipelineConfig):
     pipeline: TrainerPipeline = pipeline_cls(
         model_builder,
         training_strategy,
-        dataloader_strategy
+        dataloader_strategy,
+        device=pipeline_config.device
     )
     
     # start pipeline
