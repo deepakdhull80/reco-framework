@@ -204,7 +204,7 @@ class TwoTowerModel(ModelWrapper):
     
     def train_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
         query_emb, item_emb = self.forward(batch)
-        labels = (batch[self.target_id_name] >= self.label_threshold).float()
+        labels = (batch[self.target_id_name] > self.label_threshold).float()
         similarity_matrix = torch.einsum('ab,cd->ac', query_emb, item_emb)
         p_out = similarity_matrix.diag().sigmoid()
         loss = torch.nn.functional.binary_cross_entropy(p_out, labels)
@@ -218,7 +218,7 @@ class TwoTowerModel(ModelWrapper):
     @torch.no_grad()
     def val_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
         query_emb, item_emb = self.forward(batch)
-        labels = (batch['Rating'] >= self.label_threshold).float()
+        labels = (batch[self.target_id_name] > self.label_threshold).float()
         similarity_matrix = torch.einsum('ab,cd->ac', query_emb, item_emb)
         p_out = similarity_matrix.diag().sigmoid()
         loss = torch.nn.functional.binary_cross_entropy(p_out, labels)

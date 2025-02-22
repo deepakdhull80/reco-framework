@@ -87,6 +87,8 @@ class FeatureConfig(BaseModel):
             
             if feature.f_type == FeatureType.CATEGORICAL:
                 value = value.astype(feature.f_dtype)
+                # handling value exceeding the cardinality
+                value = value % feature.cardinality
             if feature.f_type == FeatureType.NUMERICAL:
                 value = value.astype(feature.f_dtype)
             if feature.f_type == FeatureType.VECTOR:
