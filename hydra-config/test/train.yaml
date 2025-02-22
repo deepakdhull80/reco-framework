@@ -1,6 +1,6 @@
 defaults:
   - dataloader: simple
-  - model: two_tower
+  - model: id_based_two_tower
   - data: movielens
   - trainer: default
 

@@ -4,6 +4,10 @@ type: retrieval
 sparse_optimizer_clz: SparseAdam
 optimizer_clz: Adam
 
+query_id_name: UserID
+item_id_name: MovieID
+target_id_name: Rating
+
 features:
   numerical_features:
     - {name: Timestamp, tower: query, f_dtype: long, is_datetime: true}

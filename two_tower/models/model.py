@@ -13,16 +13,18 @@ from two_tower.model_config import TwoTowerConfig
 class ItemTower(nn.Module):
     def __init__(self, model_config: TwoTowerConfig) -> None:
         super().__init__()
+        print(model_config)
         self.item_features = model_config.get_item_features()
+        self.item_id_name = model_config.item_id_name
+        i = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name == self.item_id_name), self.item_features))[0]
         self.table_dim = 32
-        self.item_cardinality = 100000
-        self.item_id_name = "MovieID"
+        self.item_cardinality = i.cardinality
         
         self.n_features = 1
         self.item_embedding_table = nn.Embedding(
             num_embeddings=self.item_cardinality, 
             embedding_dim=self.table_dim, 
-            sparse=True
+            sparse=i.sparse
             )
         
         self.item_categorical_features = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name != self.item_id_name), self.item_features))
@@ -96,15 +98,16 @@ class QueryTower(nn.Module):
     def __init__(self, model_config: TwoTowerConfig) -> None:
         super().__init__()
         self.query_features = model_config.get_query_features()
+        self.query_id_name = model_config.query_id_name
+        q = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name == self.query_id_name), self.query_features))[0]
         self.table_dim = 32
-        self.query_cardinality = 100000
-        self.query_id_name = "UserID"
+        self.query_cardinality = q.cardinality
         
         self.n_features = 1
         self.query_embedding_table = nn.Embedding(
             num_embeddings=self.query_cardinality, 
             embedding_dim=self.table_dim, 
-            sparse=True
+            sparse=q.sparse
             )
         
         self.query_categorical_features = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name != self.query_id_name), self.query_features))
@@ -178,7 +181,7 @@ class TwoTowerModel(ModelWrapper):
     def __init__(self, model_config: TwoTowerConfig) -> None:
         super().__init__(model_config)
         self.model_config = model_config
-        
+        self.target_id_name = model_config.target_id_name
         self.item_tower = ItemTower(model_config)
         self.query_tower = QueryTower(model_config)
         self.label_threshold = 3
@@ -201,7 +204,7 @@ class TwoTowerModel(ModelWrapper):
     
     def train_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
         query_emb, item_emb = self.forward(batch)
-        labels = (batch['Rating'] >= self.label_threshold).float()
+        labels = (batch[self.target_id_name] >= self.label_threshold).float()
         similarity_matrix = torch.einsum('ab,cd->ac', query_emb, item_emb)
         p_out = similarity_matrix.diag().sigmoid()
         loss = torch.nn.functional.binary_cross_entropy(p_out, labels)

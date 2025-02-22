@@ -47,6 +47,7 @@ class NumericalFeature(Feature):
 class CategoricalFeature(Feature):
     f_type: FeatureType = FeatureType.CATEGORICAL
     cardinality: int = 10
+    sparse: bool = False
 
 class VectorFeature(Feature):
     f_type: FeatureType = FeatureType.VECTOR

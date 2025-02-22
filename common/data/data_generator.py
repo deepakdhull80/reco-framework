@@ -11,7 +11,7 @@ class SimpleDataGenerator(IterableDataset):
         self._model_config = pipeline_cfg.model
         
         
-        paths = list(filter(lambda x: kind in x,paths))
+        paths = list(filter(lambda x: kind in x, paths))
         assert len(paths) != 0, "File not found for kind: {}".format(kind)
         
         self.df: pd.DataFrame = None

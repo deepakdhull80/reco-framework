@@ -8,6 +8,9 @@ class ModelConfig(BaseModel):
     name: str
     version: float = 0.0
     type: ModelType
+    query_id_name: str
+    item_id_name: str
+    target_id_name: str
     features: FeatureConfig
     optimizer_clz: str = 'Adam'
     sparse_optimizer_clz: str = 'Adam'
