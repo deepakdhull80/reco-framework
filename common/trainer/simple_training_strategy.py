@@ -1,5 +1,5 @@
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 import torch
 import torch.nn as nn
 
@@ -12,6 +12,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.log_kth_train_step = 100
+        self.aggregate_k_steps = 100
     
     def fit(self, train_dl, val_dl, model: nn.Module):
         for epoch in range(self.trainer_config.epochs):
@@ -22,6 +23,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
     def train(self, epoch, train_dl, model: nn.Module):
         loss = 0
         metrics = defaultdict(int)
+        metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
         model.train()
         
         optimizer_clz = model.get_optimizer_clz(self.model_config.optimizer_clz)
@@ -52,7 +54,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
             sparse_optimizer.step()
             
             loss += _loss.cpu().item()
-            metrics, loss = self.update_metrics(idx, metrics, _metrics, loss)
+            metrics, loss = self.update_metrics(idx, metrics, _metrics, loss, metric_history)
             if (idx+1) % self.log_kth_train_step == 0:
                 self.print_log(
                     epoch=epoch,
@@ -61,7 +63,13 @@ class SimpleTrainingStrategy(TrainingStrategy):
                     metrics=metrics,
                     train=True
                 )
-        
+        self.print_log(
+                epoch=epoch,
+                idx=-1,
+                loss=loss,
+                metrics=metrics,
+                train=True
+            )
         return loss, metrics
 
 
@@ -69,13 +77,14 @@ class SimpleTrainingStrategy(TrainingStrategy):
     def val(self, epoch, val_dl, model: nn.Module):
         loss = 0
         metrics = defaultdict(int)
+        metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
         model.eval()
         
         for idx, batch in enumerate(val_dl):
             _loss, _metrics = model.val_step(batch)
         
             loss += _loss.cpu().item()
-            metrics, loss = self.update_metrics(idx, metrics, _metrics, loss)
+            metrics, loss = self.update_metrics(idx, metrics, _metrics, loss, metric_history)
             if (idx+1) % self.log_kth_train_step == 0:
                 self.print_log(
                     epoch=epoch,
@@ -84,19 +93,29 @@ class SimpleTrainingStrategy(TrainingStrategy):
                     metrics=metrics,
                     train=False
                 )
-        
+        self.print_log(
+                epoch=epoch,
+                idx=-1,
+                loss=loss,
+                metrics=metrics,
+                train=False
+            )
         return loss, metrics
     
     
-    def update_metrics(self, batch_idx, metric, _b, loss_sum):
-        for k,v in _b.items():
-            metric[k] += v
-            # metric[k] /= (batch_idx+1)
+    def update_metrics(self, batch_idx, metric, _b, loss_sum, metric_history):
+        for k, v in _b.items():
+            metric_history[k].append(v)
+            metric[k] = sum(metric_history[k]) / len(metric_history[k])
         
-        return metric, loss_sum/(batch_idx+1)
+        return metric, loss_sum / (batch_idx + 1)
     
     
     def print_log(self, epoch, idx, loss, metrics, train: bool = True):
         step_type = 'TRAIN' if train else 'EVAL'
-        m = {k:f"{v/(1+idx):.4f}" for k,v in metrics.items()}
-        logger.info(f"[{step_type}], Epoch: {epoch}, Step: {idx}, Loss: {loss:.4f} Metrics: {m}")
+        # Format metrics to show averages over the last k steps
+        m = {k: f"{v:.4f}" for k, v in metrics.items()}
+        logger.info(
+            f"[{step_type}], Epoch: {epoch}, Step: {idx}, "
+            f"Loss: {loss:.4f}, Metrics (avg last {self.aggregate_k_steps} steps): {m}"
+        )

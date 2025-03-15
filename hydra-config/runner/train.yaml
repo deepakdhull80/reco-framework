@@ -6,4 +6,4 @@ defaults:
 
 pipeline_name: simple
 env: pytorch
-device: cpu
+device: mps

@@ -4,17 +4,17 @@ type: retrieval
 sparse_optimizer_clz: Adam
 optimizer_clz: Adam
 
-query_id_name: userId
-item_id_name: movieId
-target_id_name: rating
+query_id_name: UserID
+item_id_name: MovieID
+target_id_name: Rating
 
 features:
   numerical_features:
-    - {name: timestamp, tower: query, f_dtype: long, is_datetime: true}
+    - {name: Timestamp, tower: query, f_dtype: long, is_datetime: true}
 
   categorical_features:
-    - {name: userId, tower: query, f_dtype: long, cardinality: 200000}
-    - {name: movieId, tower: item, f_dtype: long, cardinality: 100000}
+    - {name: UserID, tower: query, f_dtype: long, cardinality: 200000}
+    - {name: MovieID, tower: item, f_dtype: long, cardinality: 100000}
 
   common_features:
-    - {name: rating, f_dtype: int32}
+    - {name: Rating, f_dtype: int32}

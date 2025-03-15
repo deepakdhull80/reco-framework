@@ -10,7 +10,8 @@ from utils import (
 )
 
 do_id_based = True
-base_path = "/Users/deepakdhull/data/recsys/ml-25m"
+# base_path = "/Users/deepakdhull/data/recsys/ml-25m"
+base_path = "/Users/deepak.dhull/data/recsys/ml-1m"
 print(os.listdir(base_path))
 
 rating_cols = "UserID::MovieID::Rating::Timestamp".split("::")
