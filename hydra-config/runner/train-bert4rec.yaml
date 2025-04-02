@@ -1,0 +1,9 @@
+defaults:
+  - dataloader: simple
+  - model: bert4rec
+  - data: movielens
+  - trainer: default
+
+pipeline_name: simple
+env: pytorch
+device: mps

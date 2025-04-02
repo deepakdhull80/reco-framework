@@ -10,6 +10,7 @@ from common.pipeline_config import PipelineConfig
 from common.pipeline_builder import TrainerPipeline, PipelineOptions
 from common.trainer.simple_training_strategy import SimpleTrainingStrategy
 from two_tower.model_builder import TwoTowerBuilder
+from bert4rec.model_builder import Bert4RecBuilder
 from common.data.dataloader import SimpleDataLoaderStrategy
 
 ################################################################
@@ -29,7 +30,13 @@ logging.basicConfig(filename=log_file_path,
 def execute(pipeline_config: PipelineConfig):
     # Model builder
     model_config = pipeline_config.model
-    model_builder = TwoTowerBuilder(model_config)
+    print(f"Model Selection: {model_config.name}")
+    if 'two_tower' in model_config.name:
+        model_builder = TwoTowerBuilder(model_config)
+    elif "bert4rec" in model_config.name:
+        model_builder = Bert4RecBuilder(model_config)
+    else:
+        raise NotImplementedError(f"{model_config.name} implemented not found.")
     
     # Pipeline Builder
     if pipeline_config.pipeline_name == PipelineOptions.SIMPLE:
