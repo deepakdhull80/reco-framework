@@ -1,6 +1,6 @@
 import pandas as pd
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Union
 from common.constants import ModelType
 from common.data.feature_config import FeatureConfig, Feature, TowerType
 
@@ -16,7 +16,7 @@ class ModelConfig(BaseModel):
     sparse_optimizer_clz: str = 'Adam'
     sparse_lr: float = 1e-3
     lr: float = 1e-3
-    beta: float = 0.99
+    beta: Optional[Union[float, list]] = 0.99
     
     def transformation_step(self, data: pd.DataFrame):
         return data

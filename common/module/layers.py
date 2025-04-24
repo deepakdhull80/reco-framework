@@ -24,13 +24,14 @@ class LinearLayer(nn.Module):
 class TransformerLayer(nn.Module):
     def __init__(self, embed_dim, num_heads, dropout=0.0, bias=True):
         super().__init__()
-        self.mha = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, bias=bias)
+        self.mha = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, bias=bias, batch_first=True)
         self.ffn = LinearLayer(embed_dim, [embed_dim*2], bias=bias)
         self.dropout = nn.Dropout(dropout)
         self.layernorm1 = nn.LayerNorm(embed_dim)
         self.layernorm2 = nn.LayerNorm(embed_dim)
         
-    def forward(self, x, attn_mask=None):
-        x = self.layernorm1(x + self.mha(x, x, x, attn_mask=attn_mask))
+    def forward(self, x, key_padding_mask=None):
+        out = self.mha(x, x, x, key_padding_mask=key_padding_mask, need_weights=False)
+        x = self.layernorm1(x + out[0])
         x = self.layernorm2(x + self.dropout(self.ffn(x)))
         return x

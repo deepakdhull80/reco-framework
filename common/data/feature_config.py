@@ -59,6 +59,7 @@ class CommonFeature(Feature):
 
 class HistoryFeature(Feature):
     f_type: FeatureType = FeatureType.CATEGORICAL_LIST
+    f_dtype: DataType = DataType.LONG
     cardinality: int = 10
     padding_key: int = 0
     pad_at_end: bool = True
@@ -115,7 +116,7 @@ class FeatureConfig(BaseModel):
                 # Handle categorical list, where length should be max_length
                 # and padding_key should be used for padding
                 # and pad_at_end should used to determine padding position
-                dtype = "long"
+                dtype = feature.f_dtype
                 max_length = feature.max_length
                 pad_at_end = feature.pad_at_end
                 padding_key = feature.padding_key
@@ -123,12 +124,13 @@ class FeatureConfig(BaseModel):
                 for row in value:
                     if isinstance(row, np.ndarray):
                         row = row.tolist()
-                    delta = max_length - len(row)
+                    delta = max(0, max_length - len(row))
                     if pad_at_end:
                         row.extend([padding_key] * delta)
                     else:
                         row = [padding_key] * delta + row
                     row = np.array(row)
+                    row = row[:max_length]
                     arr.append(row)
                 value = np.stack(arr, axis=0)
                 value = value.astype(dtype)

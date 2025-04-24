@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import (
-    average_precision_score, roc_auc_score
+    average_precision_score, roc_auc_score, f1_score
     )
 
 from common.module.layers import TransformerLayer, LinearLayer
@@ -25,8 +25,8 @@ class Bert4RecModule(nn.Module):
         self.item_embedding_table = nn.Embedding(self.items_cardinality, self.latent_dim)
         self.tl_heads = model_config.tl_heads
         
-        self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=0.1, bias=True) for _ in range(model_config.tl_layers)])
-        self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*2], bias=True)
+        self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=model_config.tl_dropout, bias=model_config.bias_enable) for _ in range(model_config.tl_layers)])
+        self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*2], bias=model_config.bias_enable)
     
     def _item_logits(self, x: torch.Tensor, cloze_masking: torch.Tensor = None) -> torch.Tensor:
         # item table lookup (cardinality, dimension)
@@ -37,7 +37,7 @@ class Bert4RecModule(nn.Module):
             cloze_masking = cloze_masking.view(-1)
             x = x[cloze_masking]
         else:
-            # expecting during ineference
+            # expecting during inference
             x = x[:, -1, :]
             x = x.view(b, d)
         
@@ -71,12 +71,12 @@ class Bert4RecModule(nn.Module):
         
         # pass through transformer
         for mod in self.transformer_layers:
-            x = mod(x, attn_mask=history_mask)
+            x = mod(x, key_padding_mask=history_mask)
         
         # projection layer: (B, S, D)
         x = self.projection_layer(x)
         logits = self._item_logits(x, cloze_masking=cloze_masking)
-        return logits.sigmoid(dim=-1)
+        return logits.sigmoid()
 
 class Bert4RecModel(ModelWrapper):
     def __init__(self, model_config: Bert4RecConfig, device: str) -> None:
@@ -93,15 +93,15 @@ class Bert4RecModel(ModelWrapper):
         # initialize model weights
         self._initialize_bert4rec_weights()
     
-    def _initialize_bert4rec_weights(mean=0.0, std=0.02):
+    def _initialize_bert4rec_weights(self, mean=0.0, std=0.02):
         for module in self.bert_module.modules():
             if isinstance(module, (nn.Linear, nn.Embedding)):
-                init.normal_(module.weight, mean=mean, std=std)
+                nn.init.normal_(module.weight, mean=mean, std=std)
                 if hasattr(module, 'bias') and module.bias is not None:
-                    init.constant_(module.bias, 0.0)
+                    nn.init.constant_(module.bias, 0.0)
             elif isinstance(module, nn.LayerNorm):
-                init.constant_(module.bias, 0.0)
-                init.constant_(module.weight, 1.0)
+                nn.init.constant_(module.bias, 0.0)
+                nn.init.constant_(module.weight, 1.0)
     
     def _transform_device(self, batch: nn.ModuleDict) -> nn.ModuleDict:
         # TODO: need to fix this based upon multi-gpu, device transfer with global variables
@@ -117,8 +117,8 @@ class Bert4RecModel(ModelWrapper):
         if train:
             history_feature_ids = batch[self.history_feature_name]
             B, S = history_feature_ids.shape
-            history_mask = (history_feature_ids == self.padding_key).to(device)
-            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).int().to(self.device)
+            history_mask = (history_feature_ids == self.padding_key).to(self.device)
+            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).bool().to(self.device)
             cloze_masking = cloze_masking.masked_fill(history_mask, 0)
         else:
             cloze_masking = None
@@ -127,7 +127,7 @@ class Bert4RecModel(ModelWrapper):
         return bert_output, cloze_masking
     
     def train_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
-        bert_output, cloze_masking = self.forward(batch)
+        bert_output, cloze_masking = self.forward(batch, train=True)
         device = bert_output.device
         cloze_masking = cloze_masking.view(-1)
         labels = batch[self.history_feature_name].view(-1)[cloze_masking].to(device)
@@ -144,8 +144,8 @@ class Bert4RecModel(ModelWrapper):
         
         bert_output, cloze_masking = self.forward(batch)
         device = bert_output.device
-        cloze_masking = cloze_masking.view(-1)
-        labels = batch[self.history_feature_name].view(-1)[cloze_masking].to(device)
+        
+        labels = batch[self.history_feature_name][:, -1].to(device)
         loss = torch.nn.functional.cross_entropy(bert_output, labels)
         
         metrics = {}

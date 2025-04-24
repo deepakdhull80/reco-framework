@@ -9,7 +9,8 @@ from utils import (
     GloVeWrapper
 )
 
-do_id_based = True
+do_id_based = False
+history_based = True
 # base_path = "/Users/deepakdhull/data/recsys/ml-25m"
 base_path = "/Users/deepak.dhull/data/recsys/ml-1m"
 print(os.listdir(base_path))
@@ -68,6 +69,45 @@ if do_id_based:
     print("Files presents :", f"{base_path}/train.pq")
     test_df.to_parquet(f"{base_path}/val.pq", index=False)
     print("Files presents :", f"{base_path}/val.pq")
+    exit()
+elif history_based:
+    id_offset = 10
+    print("Preparing Data history based")
+    print(rating_df.info())
+    rating_df['Timestamp'] = rating_df['Timestamp'].astype('int32')
+    rating_df['UserID'] = rating_df['UserID'].astype('int32')
+    rating_df['MovieID'] = rating_df['MovieID'].astype('int32') + id_offset
+    
+    max_seq_length = 200
+    def func(df: pd.DataFrame):
+        item_seq = df.sort_values(by=['Timestamp'], ascending=True)['MovieID'].tolist()
+        final_list = []
+        n_items = len(item_seq)
+        for i in range(0, n_items//max_seq_length + 1):
+            final_list.append(item_seq[i*max_seq_length:(i+1)*max_seq_length])
+        if len(final_list[-1]) == 1:
+            final_list.pop(-1)
+        
+        validation_flag = []
+        if len(final_list) == 1:
+            validation_flag = [False]
+        else:
+            validation_flag = [False]*(len(final_list)-1) + [True]
+        return final_list, validation_flag
+
+    user_seq_df = rating_df.groupby('UserID').apply(func)
+    user_seq_df = user_seq_df.reset_index().rename(columns={0: 'sequence'})
+    sequences = []
+    for _, row in user_seq_df.iterrows():
+        sequences.extend([[row['UserID'], r, val] for r, val in zip(row['sequence'][0], row['sequence'][1])])
+    
+    seq_df = pd.DataFrame(sequences, columns=['user_id', 'history_feature', 'val_fold'])
+    columns_require = ['user_id', 'history_feature']
+    train_df = seq_df[~seq_df['val_fold']]
+    val_df = seq_df[seq_df['val_fold']]
+    train_df[columns_require].to_parquet(f"{base_path}/train.pq", index=False)
+    val_df[columns_require].to_parquet(f"{base_path}/val.pq", index=False)
+    print("Data prepared for history based system")
     exit()
 ######### MOVIE DF #############
 

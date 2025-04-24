@@ -4,6 +4,9 @@ defaults:
   - data: movielens
   - trainer: default
 
+dataloader:
+  mini_batch_size: 16
+  batch_size: 16
 pipeline_name: simple
 env: pytorch
 device: mps

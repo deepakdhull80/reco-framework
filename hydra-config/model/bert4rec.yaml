@@ -16,7 +16,11 @@ latent_dim: 32
 padding_key: 0
 mask_key: 1
 cloze_masking_factor: 0.2
+tl_heads: 4
+tl_layers: 2
+tl_dropout: 0.1
+bias_enable: true
 
 features:
   history_features:
-    - {name: history_feature, tower: query, cardinality: 100000, padding_key: 0, pad_at_end: false, max_length: 200}
+    - {name: history_feature, tower: query, f_dtype: long, cardinality: 10000, padding_key: 0, pad_at_end: false, max_length: 200}

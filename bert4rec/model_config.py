@@ -7,6 +7,11 @@ class Bert4RecConfig(ModelConfig):
     padding_key: int = 0
     mask_key: int = 1
     cloze_masking_factor: float = 0.2
+    beta: list = [0.9, 0.999]
+    tl_heads: int = 4
+    tl_layers: int = 2
+    tl_dropout: float = 0.1
+    bias_enable: bool = True
     
     def transformation_step(self, data: pd.DataFrame):
         return data
