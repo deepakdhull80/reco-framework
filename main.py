@@ -28,7 +28,7 @@ logging.basicConfig(filename=log_file_path,
 
 
 def execute(pipeline_config: PipelineConfig):
-    # Model builder
+    # Model Builder
     model_config = pipeline_config.model
     print(f"Model Selection: {model_config.name}")
     if 'two_tower' in model_config.name:

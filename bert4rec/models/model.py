@@ -6,185 +6,102 @@ from sklearn.metrics import (
     average_precision_score, roc_auc_score
     )
 
+from common.module.layers import TransformerLayer, LinearLayer
 from common.model import ModelWrapper
 from common.data.feature_config import FeatureType
 from bert4rec.model_config import Bert4RecConfig
 
-class ItemTower(nn.Module):
-    def __init__(self, model_config: Bert4RecConfig) -> None:
-        super().__init__()
-        self.item_features = model_config.get_item_features()
-        self.item_id_name = model_config.item_id_name
-        i = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name == self.item_id_name), self.item_features))[0]
-        self.table_dim = 32
-        self.item_cardinality = i.cardinality
-        
-        self.n_features = 1
-        self.item_embedding_table = nn.Embedding(
-            num_embeddings=self.item_cardinality, 
-            embedding_dim=self.table_dim, 
-            sparse=i.sparse
-            )
-        
-        self.item_categorical_features = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name != self.item_id_name), self.item_features))
-        self.n_features += len(self.item_categorical_features)
-        self.categorical_layers_dict = nn.ModuleDict({
-            feature.name: nn.Embedding(feature.cardinality, self.table_dim) for feature in self.item_categorical_features
-        })
-        
-        # item numerical features
-        self.numerical_features = list(filter(lambda x: (x.f_type ==  FeatureType.NUMERICAL and not x.is_datetime ), self.item_features))
-        self.numerical_feature_representations = 3
-        
-        self.numerical_layer = nn.Sequential(
-            nn.Linear(len(self.numerical_features), self.numerical_feature_representations * self.table_dim),
-            nn.ReLU(),
-            nn.Linear(self.numerical_feature_representations * self.table_dim, self.numerical_feature_representations * self.table_dim)
-        ) if len(self.numerical_features) >= 0 else nn.Identity()
-        self.n_features += self.numerical_feature_representations if len(self.numerical_features) else 0
-        
-        
-        # vectore features
-        self.vector_features = list(filter(lambda x: x.f_type ==  FeatureType.VECTOR, self.item_features))
-        self.n_features += len(self.vector_features)
-        self.vector_mlp = nn.ModuleDict({
-            feature.name: nn.Linear(feature.dim, self.table_dim) for feature in self.vector_features
-        })
-        
-        # final merging layer
-        self.item_embedding_dim = 32
-        self.merge_layer = nn.Sequential(
-            nn.Linear(self.n_features * self.table_dim, self.item_embedding_dim * 4),
-            nn.ReLU(),
-            nn.Linear(self.item_embedding_dim * 4, self.item_embedding_dim)
-        )
-        
-        
-    def forward(self, batch):
-        # process high cardinality feature
-        output = {}
-        x = self.item_embedding_table(batch[self.item_id_name])
-        output[self.item_id_name] = x
-        
-        # process categorical features
-        for f_name, fn in self.categorical_layers_dict.items():
-            output[f_name] = fn(batch[f_name])
-        
-        # process numerical features
-        ## expecting normalize feature
-        numerical_v = []
-        for feature in self.numerical_features:
-            numerical_v.append(batch[feature.name])
-        if len(numerical_v) != 0:
-            numerical_v = torch.concat(numerical_v, dim=1)
-            for i, out in enumerate(self.numerical_layer(numerical_v).view(-1, self.numerical_feature_representations, self.table_dim).unbind(dim=1)):
-                output[f'item_numerical_output_{i}'] = out
-        
-        # process vector features
-        for f_name, layer in self.vector_mlp.items():
-            output[f_name] = layer(batch[f_name])
-        
-        # merge layer
-        all_feat = []
-        for key in sorted(output.keys()):
-            all_feat.append(output[key])
-        
-        all_feat = torch.concat(all_feat, dim=1)
-        item_embedding = self.merge_layer(all_feat)
-        return item_embedding
 
-class QueryTower(nn.Module):
+
+class Bert4RecModule(nn.Module):
     def __init__(self, model_config: Bert4RecConfig) -> None:
         super().__init__()
         self.query_features = model_config.get_query_features()
-        self.query_id_name = model_config.query_id_name
-        q = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name == self.query_id_name), self.query_features))[0]
-        self.table_dim = 32
-        self.query_cardinality = q.cardinality
+        self.history_feature = model_config.features.get_feature_by_name(model_config.history_feature_name)
+        self.items_cardinality = self.history_feature.cardinality
+        self.latent_dim = model_config.latent_dim
+        self.padding_key = model_config.padding_key
+        self.mask_key = model_config.mask_key
+        self.item_embedding_table = nn.Embedding(self.items_cardinality, self.latent_dim)
+        self.tl_heads = model_config.tl_heads
         
-        self.n_features = 1
-        self.query_embedding_table = nn.Embedding(
-            num_embeddings=self.query_cardinality, 
-            embedding_dim=self.table_dim, 
-            sparse=q.sparse
-            )
+        self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=0.1, bias=True) for _ in range(model_config.tl_layers)])
+        self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*2], bias=True)
+    
+    def _item_logits(self, x: torch.Tensor, cloze_masking: torch.Tensor = None) -> torch.Tensor:
+        # item table lookup (cardinality, dimension)
+        b, s, d = x.shape
+        if cloze_masking is not None:
+            # during training
+            x = x.view(-1, d)
+            cloze_masking = cloze_masking.view(-1)
+            x = x[cloze_masking]
+        else:
+            # expecting during ineference
+            x = x[:, -1, :]
+            x = x.view(b, d)
         
-        self.query_categorical_features = list(filter(lambda x: (x.f_type ==  FeatureType.CATEGORICAL) and (x.name != self.query_id_name), self.query_features))
-        self.n_features += len(self.query_categorical_features)
+        x = torch.einsum("bd,cd->bc", x, self.item_embedding_table.weight)
+        return x    
+    
+    def forward(self, batch: nn.ModuleDict, cloze_masking: torch.Tensor=None) -> torch.Tensor:
+        """ return the output of bert4rec model.
+
+        Args:
+            batch (nn.ModuleDict):
+
+        Returns:
+            torch.Tensor: logits for every head
+        """
         
-        self.categorical_layers_dict = nn.ModuleDict({
-            feature.name: nn.Embedding(feature.cardinality, self.table_dim) for feature in self.query_categorical_features
-        })
+        # history feature (B, S)
+        history_feature_ids = batch[self.history_feature.name]
+        device = history_feature_ids.device
         
-        # query numerical features
-        self.numerical_features = list(filter(lambda x: (x.f_type ==  FeatureType.NUMERICAL and not x.is_datetime ), self.query_features))
-        self.numerical_feature_representations = 3
+        B, S = history_feature_ids.shape
+        history_mask = (history_feature_ids == self.padding_key).to(device)
         
-        self.numerical_layer = nn.Sequential(
-            nn.Linear(len(self.numerical_features), self.numerical_feature_representations * self.table_dim),
-            nn.ReLU(),
-            nn.Linear(self.numerical_feature_representations * self.table_dim, self.numerical_feature_representations * self.table_dim)
-        ) if len(self.numerical_features) >= 0 else nn.Identity()
-        self.n_features += self.numerical_feature_representations if len(self.numerical_features) else 0
+        if cloze_masking is not None:
+            history_feature_ids = history_feature_ids.masked_fill(cloze_masking, self.mask_key)
+        else:
+            pass
         
-        # vectore features
-        self.vector_features = list(filter(lambda x: x.f_type ==  FeatureType.VECTOR, self.query_features))
-        self.n_features += len(self.vector_features)
-        self.vector_mlp = nn.ModuleDict({
-            feature.name: nn.Linear(feature.dim, self.table_dim) for feature in self.vector_features
-        })
+        # item id representation
+        x = self.item_embedding_table(history_feature_ids)
         
-        # final merging layer
-        self.query_embedding_dim = 32
-        self.merge_layer = nn.Sequential(
-            nn.Linear(self.n_features * self.table_dim, self.query_embedding_dim * 4),
-            nn.ReLU(),
-            nn.Linear(self.query_embedding_dim * 4, self.query_embedding_dim)
-        )
+        # pass through transformer
+        for mod in self.transformer_layers:
+            x = mod(x, attn_mask=history_mask)
         
-        
-    def forward(self, batch):
-        # process high cardinality feature
-        output = {}
-        x = self.query_embedding_table(batch[self.query_id_name])
-        output[self.query_id_name] = x
-        
-        # process categorical features
-        for f_name, fn in self.categorical_layers_dict.items():
-            output[f_name] = fn(batch[f_name])
-        
-        # process numerical features
-        ## expecting normalize feature
-        numerical_v = []
-        for feature in self.numerical_features:
-            numerical_v.append(batch[feature.name])
-        if len(numerical_v) != 0:
-            numerical_v = torch.concat(numerical_v, dim=1)
-            for i, out in enumerate(self.numerical_layer(numerical_v).view(-1, self.numerical_feature_representations, self.table_dim).unbind(dim=1)):
-                output[f'query_numerical_output_{i}'] = out
-        
-        # process vector features
-        for f_name, layer in self.vector_mlp.items():
-            output[f_name] = layer(batch[f_name])
-        
-        # merge layer
-        all_feat = []
-        for key in sorted(output.keys()):
-            all_feat.append(output[key])
-        
-        all_feat = torch.concat(all_feat, dim=1)
-        query_embedding = self.merge_layer(all_feat)
-        return query_embedding
+        # projection layer: (B, S, D)
+        x = self.projection_layer(x)
+        logits = self._item_logits(x, cloze_masking=cloze_masking)
+        return logits.sigmoid(dim=-1)
 
 class Bert4RecModel(ModelWrapper):
     def __init__(self, model_config: Bert4RecConfig, device: str) -> None:
         super().__init__(model_config, device)
         self.model_config = model_config
+        self.history_feature_name = model_config.history_feature_name
+        self.mask_key = model_config.mask_key
+        self.padding_key = model_config.padding_key
         self.target_id_name = model_config.target_id_name
-        self.item_tower = ItemTower(model_config)
-        self.query_tower = QueryTower(model_config)
-        self.label_threshold = 3
+        self.bert_module = Bert4RecModule(model_config)
         self.device = device
+        self.cloze_masking_factor = model_config.cloze_masking_factor
+        
+        # initialize model weights
+        self._initialize_bert4rec_weights()
+    
+    def _initialize_bert4rec_weights(mean=0.0, std=0.02):
+        for module in self.bert_module.modules():
+            if isinstance(module, (nn.Linear, nn.Embedding)):
+                init.normal_(module.weight, mean=mean, std=std)
+                if hasattr(module, 'bias') and module.bias is not None:
+                    init.constant_(module.bias, 0.0)
+            elif isinstance(module, nn.LayerNorm):
+                init.constant_(module.bias, 0.0)
+                init.constant_(module.weight, 1.0)
     
     def _transform_device(self, batch: nn.ModuleDict) -> nn.ModuleDict:
         # TODO: need to fix this based upon multi-gpu, device transfer with global variables
@@ -195,36 +112,45 @@ class Bert4RecModel(ModelWrapper):
                 batch[key] = value  # Preserve non-tensor values as it is
         return batch
     
-    def forward(self, batch: nn.ModuleDict):
+    def forward(self, batch: nn.ModuleDict, train:bool=False):
         self._transform_device(batch)
-        query_output = self.query_tower(batch)
-        item_output = self.item_tower(batch)
-        return query_output, item_output
+        if train:
+            history_feature_ids = batch[self.history_feature_name]
+            B, S = history_feature_ids.shape
+            history_mask = (history_feature_ids == self.padding_key).to(device)
+            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).int().to(self.device)
+            cloze_masking = cloze_masking.masked_fill(history_mask, 0)
+        else:
+            cloze_masking = None
+        
+        bert_output = self.bert_module(batch, cloze_masking=cloze_masking)
+        return bert_output, cloze_masking
     
     def train_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
-        query_emb, item_emb = self.forward(batch)
-        labels = (batch[self.target_id_name] > self.label_threshold).float()
-        similarity_matrix = torch.einsum('ab,cd->ac', query_emb, item_emb)
-        p_out = similarity_matrix.diag().sigmoid()
-        loss = torch.nn.functional.binary_cross_entropy(p_out, labels)
+        bert_output, cloze_masking = self.forward(batch)
+        device = bert_output.device
+        cloze_masking = cloze_masking.view(-1)
+        labels = batch[self.history_feature_name].view(-1)[cloze_masking].to(device)
+        loss = torch.nn.functional.cross_entropy(bert_output, labels)
         
         with torch.no_grad():
             metrics = {}
-            metrics['train_auc'] = roc_auc_score(labels.cpu(), p_out.cpu())
-            metrics['train_ap'] = average_precision_score(labels.cpu(), p_out.cpu())
+            p_out = torch.argmax(bert_output.cpu(), dim=-1)
+            metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.numpy(), average='micro')
         return loss, metrics
         
     @torch.no_grad()
     def val_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
-        query_emb, item_emb = self.forward(batch)
-        labels = (batch[self.target_id_name] > self.label_threshold).float()
-        similarity_matrix = torch.einsum('ab,cd->ac', query_emb, item_emb)
-        p_out = similarity_matrix.diag().sigmoid()
-        loss = torch.nn.functional.binary_cross_entropy(p_out, labels)
+        
+        bert_output, cloze_masking = self.forward(batch)
+        device = bert_output.device
+        cloze_masking = cloze_masking.view(-1)
+        labels = batch[self.history_feature_name].view(-1)[cloze_masking].to(device)
+        loss = torch.nn.functional.cross_entropy(bert_output, labels)
         
         metrics = {}
-        metrics['val_auc'] = roc_auc_score(labels.cpu(), p_out.cpu())
-        metrics['val_ap'] = average_precision_score(labels.cpu(), p_out.cpu())
+        p_out = torch.argmax(bert_output.cpu(), dim=-1)
+        metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.numpy(), average='micro')
         return loss, metrics
     
     def get_optimizer_clz(self, clz):

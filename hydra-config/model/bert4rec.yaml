@@ -1,46 +1,22 @@
 name: bert4rec
 version: 1.0
 type: retrieval
-sparse_optimizer_clz: SparseAdam
+sparse_optimizer_clz: Adam
+sparse_lr: 0.0001
 optimizer_clz: Adam
-
+lr: 0.0001
+beta:
+  - 0.9
+  - 0.999
 query_id_name: UserID
 item_id_name: MovieID
 target_id_name: Rating
+history_feature_name: history_feature
+latent_dim: 32
+padding_key: 0
+mask_key: 1
+cloze_masking_factor: 0.2
 
 features:
-  numerical_features:
-    - {name: Timestamp, tower: query, f_dtype: long, is_datetime: true}
-
-  categorical_features:
-    - {name: UserID, tower: query, f_dtype: long, cardinality: 100000}
-    - {name: GenderValue, tower: query, f_dtype: int32, cardinality: 3}
-    - {name: AgeValue, tower: query, f_dtype: int32, cardinality: 100}
-    # - {name: OccupationValue, tower: query, f_dtype: int32, cardinality: 100000}
-    # - {name: OccupationValue, tower: query, f_dtype: int32}
-    - {name: MovieID, tower: item, f_dtype: long, cardinality: 100000}
-    # genres
-    - {name: Crime, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Western, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Thriller, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: War, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Horror, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Drama, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Action, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Film-Noir, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Animation, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Documentary, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Adventure, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Comedy, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Fantasy, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Musical, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Children, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Sci-Fi, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Romance, tower: item, f_dtype: bool, cardinality: 2}
-    - {name: Mystery, tower: item, f_dtype: bool, cardinality: 2}
-
-  vector_features:
-    - {name: embedding, tower: item, f_dtype: float32, dim: 100}
-
-  common_features:
-    - {name: Rating, f_dtype: int32}
+  history_features:
+    - {name: history_feature, tower: query, cardinality: 100000, padding_key: 0, pad_at_end: false, max_length: 200}
