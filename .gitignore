@@ -164,3 +164,7 @@ logs/
 *.logs
 *.ipynb
 checkpoint
+
+*.pth
+artifacts
+test_*.py

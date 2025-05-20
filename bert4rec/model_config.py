@@ -12,9 +12,12 @@ class Bert4RecConfig(ModelConfig):
     tl_layers: int = 2
     tl_dropout: float = 0.1
     bias_enable: bool = True
+    model_dir: str = "artifacts"
     
-    def transformation_step(self, data: pd.DataFrame):
+    def transformation_step(self, data: dict):
+        cardinality = self.features.get_feature_by_name(self.history_feature_name).cardinality
+        data[self.history_feature_name] = data[self.history_feature_name]%cardinality
         return data
     
-    def filter_step(self, data: pd.DataFrame):
+    def filter_step(self, data: dict):
         return data

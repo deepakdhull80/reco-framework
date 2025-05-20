@@ -25,26 +25,31 @@ class SimpleDataGenerator(IterableDataset):
         self.total_samples = self.df.shape[0]
         # self.total_steps = min(self.df.shape[0]//self.mini_batch_size, getattr(pipeline_cfg.dataloader, f'total_{kind}_steps'))
         self.total_steps = getattr(pipeline_cfg.dataloader, f'total_{kind}_steps')
+        print(f'[DEBUG] total_samples: {self.total_samples}, total_steps: {self.total_steps}')
         self.start = 0
         self.df_idx = 0
         self.preprocess_fn = pipeline_cfg.model.preprocessing_fn
     
     def get_batch(self, idx):
         batch = self.df.iloc[idx * self.mini_batch_size: (idx + 1) * self.mini_batch_size]
+        if batch.shape[0] == 0:
+            return None
         batch = self._model_config.features.convert_to_platform_type(batch)
         return batch
     
     def __iter__(self):
         while self.start < self.total_steps:
-            try:
-                batch = self.get_batch(self.start)
-                self.df_idx = (self.df_idx + 1) % self.total_samples
-                self.start += 1
-                yield self.preprocess_fn(batch)
-            except Exception as e:
-                print(e)
-                print(self.start, self.total_steps, self.df.shape)
-                # continue
+            # try:
+            batch = self.get_batch(self.start)
+            if batch is None:
                 break
+            self.df_idx = (self.df_idx + 1) % self.total_samples
+            self.start += 1
+            yield self.preprocess_fn(batch)
+            # except Exception as e:
+            #     print(e)
+            #     print(self.start, self.total_steps, self.df.shape)
+            #     # continue
+            #     break
         
         self.start = 0

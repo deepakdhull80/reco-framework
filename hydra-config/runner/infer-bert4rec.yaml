@@ -1,14 +1,14 @@
 defaults:
-  - dataloader: simple
-  - model: bert4rec
-  - data: movielens
-  - trainer: default
+  - /dataloader: simple
+  - /model: bert4rec
+  - /data: movielens
+  - /trainer: default
 
-dataloader:
+/dataloader:
   mini_batch_size: 256
   batch_size: 256
 
-trainer:
+/trainer:
   epochs: 20
 
 pipeline_name: simple

@@ -55,6 +55,7 @@ class TrainerPipeline:
 
     def export_model(
             self,
+            export_dir,
             state_dict,
             eval_result,
             inference_result,

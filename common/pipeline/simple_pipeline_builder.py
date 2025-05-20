@@ -1,3 +1,7 @@
+import os
+import torch
+import json
+import numpy as np
 from typing import List
 from common.pipeline_builder import TrainerPipeline
 from datetime import datetime
@@ -5,6 +9,7 @@ from datetime import datetime
 class SimpleTrainerPipeline(TrainerPipeline):
     
     def __init__(self,*args, **kwargs):
+        self.artifact_dir = kwargs.get('artifact_dir', 'artifacts')
         super().__init__(*args, **kwargs)
     
     
@@ -17,6 +22,10 @@ class SimpleTrainerPipeline(TrainerPipeline):
         model.to(self.device)
         # Start Training
         self.train(train_dl, val_dl, model)
+        self.persist_data_sample(train_dl, f"{self.artifact_dir}/train.npz")
+        self.persist_data_sample(val_dl, f"{self.artifact_dir}/val.npz")
+        SimpleTrainerPipeline.export_model(self.artifact_dir, model.state_dict(), None, None, training_done=True)
+        
         return
 
     def train(
@@ -27,7 +36,35 @@ class SimpleTrainerPipeline(TrainerPipeline):
     ) :
         self.training_strategy.fit(train_dl, val_dl, model)
         
-        
+    
+    def persist_data_sample(self, dl, path):
+        """Persist the first batch data sample from the given dataloader.
+
+        Args:
+            dl : torch dataloader
+                The dataloader from which the first batch will be saved.
+            path: str
+                Path to save the data sample in an `.npz` file.
+        """
+        # Get the first batch from the dataloader
+        try:
+            first_batch = next(iter(dl))
+        except StopIteration:
+            raise ValueError("The dataloader is empty. Cannot persist data sample.")
+
+        # Convert the batch to a dictionary of NumPy arrays
+        batch_data = {}
+        for key, value in first_batch.items():
+            if isinstance(value, torch.Tensor):
+                batch_data[key] = value.cpu().numpy()  # Convert tensors to NumPy arrays
+            else:
+                batch_data[key] = value  # Keep non-tensor data as is
+
+        # Save the batch data to an `.npz` file
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        np.savez_compressed(path, **batch_data)
+
+        print(f"First batch data sample saved to {path}")
 
     def eval_model(self, model, inference_result):
         raise NotImplementedError()
@@ -35,8 +72,9 @@ class SimpleTrainerPipeline(TrainerPipeline):
     def run_inference(self, model):
         raise NotImplementedError()
 
+    @staticmethod
     def export_model(
-            self,
+            export_dir: str,
             state_dict,
             eval_result,
             inference_result,
@@ -51,30 +89,30 @@ class SimpleTrainerPipeline(TrainerPipeline):
             inference_result: The inference results.
             training_done (bool): Flag indicating if training is complete.
         """
-        export_dir = "exported_models"
-        os.makedirs(export_dir, exist_ok=True)
-
         # Generate a timestamp to avoid overwriting files
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if training_done:
+            state = datetime.now().strftime("%Y%m%d_%H%M%S")
+        else:
+            state = "best"
 
         # Save the model state_dict
-        model_path = os.path.join(export_dir, f"model_state_{timestamp}.pth")
+        model_path = os.path.join(export_dir, f"model_state_{state}.pth")
         torch.save(state_dict, model_path)
+        print(f"Model exported to {model_path}")
 
         # Save the evaluation results
-        eval_result_path = os.path.join(export_dir, f"eval_results_{timestamp}.json")
-        with open(eval_result_path, "w") as f:
-            json.dump(eval_result, f, indent=4)
+        if eval_result is not None:
+            eval_result_path = os.path.join(export_dir, f"eval_results_{state}.json")
+            with open(eval_result_path, "w") as f:
+                json.dump(eval_result, f, indent=4)
+            print(f"Evaluation results exported to {eval_result_path}")
 
         # Save the inference results
-        inference_result_path = os.path.join(export_dir, f"inference_results_{timestamp}.json")
-        with open(inference_result_path, "w") as f:
-            json.dump(inference_result, f, indent=4)
-
-        # Log export completion
-        print(f"Model exported to {model_path}")
-        print(f"Evaluation results exported to {eval_result_path}")
-        print(f"Inference results exported to {inference_result_path}")
+        if inference_result is not None:
+            inference_result_path = os.path.join(export_dir, f"inference_results_{state}.json")
+            with open(inference_result_path, "w") as f:
+                json.dump(inference_result, f, indent=4)
+            print(f"Inference results exported to {inference_result_path}")
 
         if training_done:
             print("Training is complete. All artifacts have been exported.")

@@ -1,10 +1,11 @@
 name: bert4rec
+model_dir: ./artifacts/bert4rec
 version: 1.0
 type: retrieval
-sparse_optimizer_clz: Adam
-sparse_lr: 0.0001
-optimizer_clz: Adam
-lr: 0.0001
+sparse_optimizer_clz: AdamW
+sparse_lr: 0.001
+optimizer_clz: AdamW
+lr: 0.001
 beta:
   - 0.9
   - 0.999
@@ -12,15 +13,15 @@ query_id_name: UserID
 item_id_name: MovieID
 target_id_name: Rating
 history_feature_name: history_feature
-latent_dim: 32
+latent_dim: 256
 padding_key: 0
 mask_key: 1
 cloze_masking_factor: 0.2
-tl_heads: 4
+tl_heads: 2
 tl_layers: 2
 tl_dropout: 0.1
 bias_enable: true
 
 features:
   history_features:
-    - {name: history_feature, tower: query, f_dtype: long, cardinality: 10000, padding_key: 0, pad_at_end: false, max_length: 200}
+    - {name: history_feature, tower: query, f_dtype: long, cardinality: 3418, padding_key: 0, pad_at_end: false, max_length: 200}

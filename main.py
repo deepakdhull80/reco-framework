@@ -30,6 +30,7 @@ logging.basicConfig(filename=log_file_path,
 def execute(pipeline_config: PipelineConfig):
     # Model Builder
     model_config = pipeline_config.model
+    os.makedirs(model_config.model_dir, exist_ok=True)
     print(f"Model Selection: {model_config.name}")
     if 'two_tower' in model_config.name:
         model_builder = TwoTowerBuilder(model_config)
@@ -60,7 +61,8 @@ def execute(pipeline_config: PipelineConfig):
         model_builder,
         training_strategy,
         dataloader_strategy,
-        device=pipeline_config.device
+        device=pipeline_config.device,
+        artifact_dir = model_config.model_dir
     )
     
     # start pipeline
