@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,7 +16,7 @@ class LinearLayer(nn.Module):
         
         self.layers = nn.ModuleList(layers)
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor)-> torch.Tensor:
         for layer in self.layers:
             x = layer(x)
         return x
@@ -30,7 +30,7 @@ class TransformerLayer(nn.Module):
         self.layernorm1 = nn.LayerNorm(embed_dim)
         self.layernorm2 = nn.LayerNorm(embed_dim)
         
-    def forward(self, x, key_padding_mask=None):
+    def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         out = self.mha(x, x, x, key_padding_mask=key_padding_mask, need_weights=False)
         x = self.layernorm1(x + out[0])
         x = self.layernorm2(x + self.dropout(self.ffn(x)))

@@ -24,7 +24,7 @@ class SimpleTrainerPipeline(TrainerPipeline):
         self.train(train_dl, val_dl, model)
         self.persist_data_sample(train_dl, f"{self.artifact_dir}/train.npz")
         self.persist_data_sample(val_dl, f"{self.artifact_dir}/val.npz")
-        SimpleTrainerPipeline.export_model(self.artifact_dir, model.state_dict(), None, None, training_done=True)
+        SimpleTrainerPipeline.export_model(self.artifact_dir, model, None, None, training_done=True)
         
         return
 
@@ -75,16 +75,16 @@ class SimpleTrainerPipeline(TrainerPipeline):
     @staticmethod
     def export_model(
             export_dir: str,
-            state_dict,
+            model: torch.nn.Module,
             eval_result,
             inference_result,
             training_done: bool = False,
     ):
         """
-        Exports the model state_dict, evaluation results, and inference results to files.
+        Exports the scripted model, evaluation results, and inference results to files.
         
         Args:
-            state_dict: The state dictionary of the model.
+            model (torch.nn.Module): The PyTorch model to be scripted and saved.
             eval_result: The evaluation results.
             inference_result: The inference results.
             training_done (bool): Flag indicating if training is complete.
@@ -95,10 +95,16 @@ class SimpleTrainerPipeline(TrainerPipeline):
         else:
             state = "best"
 
-        # Save the model state_dict
-        model_path = os.path.join(export_dir, f"model_state_{state}.pth")
-        torch.save(state_dict, model_path)
-        print(f"Model exported to {model_path}")
+        # Save the scripted model
+        model_path = os.path.join(export_dir, f"model_scripted_{state}.pt")
+        
+        # dummy_input = {"history_feature": torch.randint(0, 100, (1, 200))}
+        # traced_model = torch.jit.trace(model, (dummy_input, torch.tensor([False]).view(1, -1), ))
+        # traced_model.save(model_path)
+        
+        scripted_model = torch.jit.script(model)  # Script the model
+        scripted_model.save(model_path)
+        print(f"Scripted model exported to {model_path}")
 
         # Save the evaluation results
         if eval_result is not None:

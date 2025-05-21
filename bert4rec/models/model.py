@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Dict, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,6 +18,7 @@ class Bert4RecModule(nn.Module):
         super().__init__()
         self.query_features = model_config.get_query_features()
         self.history_feature = model_config.features.get_feature_by_name(model_config.history_feature_name)
+        self.history_feature_name = self.history_feature.name
         self.items_cardinality = self.history_feature.cardinality
         self.latent_dim = model_config.latent_dim
         self.padding_key = model_config.padding_key
@@ -29,10 +30,10 @@ class Bert4RecModule(nn.Module):
         self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*4], bias=model_config.bias_enable)
         self.final_projection = nn.Linear(self.latent_dim, self.items_cardinality, bias=model_config.bias_enable)
     
-    def _item_logits(self, x: torch.Tensor, cloze_masking: torch.Tensor = None) -> torch.Tensor:
+    def _item_logits(self, x: torch.Tensor, cloze_masking: Optional[torch.Tensor] = None) -> torch.Tensor:
         # item table lookup (cardinality, dimension)
         b, s, d = x.shape
-        if cloze_masking is not None:
+        if cloze_masking is not None and cloze_masking.shape[1] == s:
             # during training
             x = x.view(-1, d)
             cloze_masking = cloze_masking.view(-1)
@@ -46,24 +47,25 @@ class Bert4RecModule(nn.Module):
         x = self.final_projection(x)
         return x    
     
-    def forward(self, batch: nn.ModuleDict, cloze_masking: torch.Tensor=None) -> torch.Tensor:
+    def forward(self, batch: Dict[str, torch.Tensor], cloze_masking: Optional[torch.Tensor] = None) -> torch.Tensor:
         """ return the output of bert4rec model.
 
         Args:
-            batch (nn.ModuleDict):
+            batch (Dict[str, torch.Tensor]):
+            cloze_masking (Optional[torch.Tensor]): cloze masking for training. If None, then it is inference.
 
         Returns:
             torch.Tensor: logits for every head
         """
         
         # history feature (B, S)
-        history_feature_ids = batch[self.history_feature.name]
+        history_feature_ids = batch[self.history_feature_name]
         device = history_feature_ids.device
         
         B, S = history_feature_ids.shape
         history_mask = (history_feature_ids == self.padding_key).to(device)
         
-        if cloze_masking is not None:
+        if cloze_masking is not None and cloze_masking.shape[1] == S:
             history_feature_ids = history_feature_ids.masked_fill(cloze_masking, self.mask_key)
         else:
             history_feature_ids[:, -1] = self.mask_key
@@ -105,7 +107,7 @@ class Bert4RecModel(ModelWrapper):
                 nn.init.constant_(module.bias, 0.0)
                 nn.init.constant_(module.weight, 1.0)
     
-    def _transform_device(self, batch: nn.ModuleDict) -> nn.ModuleDict:
+    def _transform_device(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         # TODO: need to fix this based upon multi-gpu, device transfer with global variables
         for key, value in batch.items():
             if isinstance(value, torch.Tensor):
@@ -114,16 +116,16 @@ class Bert4RecModel(ModelWrapper):
                 batch[key] = value  # Preserve non-tensor values as it is
         return batch
     
-    def forward(self, batch: nn.ModuleDict, train:bool=False):
+    def forward(self, batch: Dict[str, torch.Tensor], train: bool=False) -> Tuple[torch.Tensor, torch.Tensor]:
         self._transform_device(batch)
         if train:
             history_feature_ids = batch[self.history_feature_name]
             B, S = history_feature_ids.shape
             history_mask = (history_feature_ids == self.padding_key).to(self.device)
-            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).bool().to(self.device)
+            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).to(torch.bool).to(self.device)
             cloze_masking = cloze_masking.masked_fill(history_mask, 0)
         else:
-            cloze_masking = None
+            cloze_masking = torch.randn(1, 1)
         
         bert_output = self.bert_module(batch, cloze_masking=cloze_masking)
         return bert_output, cloze_masking
