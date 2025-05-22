@@ -103,7 +103,7 @@ class SimpleTrainerPipeline(TrainerPipeline):
         # traced_model.save(model_path)
         
         scripted_model = torch.jit.script(model)  # Script the model
-        scripted_model.save(model_path)
+        torch.jit.save(scripted_model, model_path)
         print(f"Scripted model exported to {model_path}")
 
         # Save the evaluation results
