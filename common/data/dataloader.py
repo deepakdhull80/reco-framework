@@ -25,6 +25,9 @@ class SimpleDataLoaderConfig(DataLoaderConfig):
     name: str = 'simple'
     
     def get_file_paths(self, path: str, file_format: str) -> List:
+        if not os.path.exists(path):
+            print("Replace <BASE_PATH> with actual path in hydra-config/data/movielens.yaml")
+            raise FileNotFoundError(f"Path not found: {path}")
         files = [f"{path}/{p}" for p in os.listdir(path) if p.endswith(file_format)]
         assert len(files) != 0, "File not found: {}".format(path)
         

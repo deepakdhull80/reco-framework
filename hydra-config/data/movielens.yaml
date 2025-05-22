@@ -1,5 +1,4 @@
 dataset_name: MovieLensDataset
 description: "MovieLens open source dataset"
-# base_path: /Users/deepakdhull/data/recsys/ml-25m
-base_path: /Users/deepak.dhull/data/recsys/ml-1m
+base_path: <BASE_PATH>
 file_format: pq
