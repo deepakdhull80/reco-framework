@@ -26,9 +26,9 @@ def evaluate(model, dataloader, mode='Eval', eval_k=10):
             # attention_mask = batch['attention_mask'].to(device)
             
             # Forward pass
-            logits, mask_positions = model(batch, train=True)
+            labels = batch['history_feature'].to(model.device)
+            logits, mask_positions = model(batch, train=False)
             device = logits.device
-            labels = batch['history_feature'].to(device)
             
             # Find positions where we need to make predictions (masked positions)
             # mask_positions = (input_ids == mask_token) & (labels != pad_token)
@@ -37,7 +37,8 @@ def evaluate(model, dataloader, mode='Eval', eval_k=10):
                 continue
                 
             # Get logits and true labels at mask positions
-            target_labels = labels[mask_positions]
+            target_labels = labels[:, -1].reshape(-1)
+            # target_labels = labels[mask_positions]
             masked_logits = logits.clone()
             
             if target_labels.numel() > 0:
@@ -46,7 +47,7 @@ def evaluate(model, dataloader, mode='Eval', eval_k=10):
                 
                 # Calculate Hit Rate@K
                 target_labels_expanded = target_labels.unsqueeze(1)
-                hits = (top_k_indices == target_labels_expanded).sum(dim=1) > 0
+                hits = (top_k_indices == target_labels_expanded).any(dim=1)
                 total_hr_k += hits.sum().item()
                 
                 # Calculate NDCG@K

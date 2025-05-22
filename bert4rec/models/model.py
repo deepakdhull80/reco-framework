@@ -73,6 +73,8 @@ class Bert4RecModule(nn.Module):
         # item id representation
         x = self.item_embedding_table(history_feature_ids)
         
+        # TODO: position embedding
+        
         # pass through transformer
         for mod in self.transformer_layers:
             x = mod(x, key_padding_mask=history_mask)
@@ -142,7 +144,7 @@ class Bert4RecModel(ModelWrapper):
         with torch.no_grad():
             metrics = {}
             # Get predictions
-            p_out = torch.argmax(bert_output, dim=-1)
+            # p_out = torch.argmax(bert_output, dim=-1)
             # Calculate F1 score
             # metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.cpu().numpy(), average='micro')
         return loss, metrics
@@ -158,7 +160,7 @@ class Bert4RecModel(ModelWrapper):
 
         metrics = {}
         # Get predictions
-        p_out = torch.argmax(bert_output, dim=-1)
+        # p_out = torch.argmax(bert_output, dim=-1)
         # Calculate F1 score
         # metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.cpu().numpy(), average='micro')
         return loss, metrics

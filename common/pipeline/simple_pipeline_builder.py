@@ -101,10 +101,13 @@ class SimpleTrainerPipeline(TrainerPipeline):
         # dummy_input = {"history_feature": torch.randint(0, 100, (1, 200))}
         # traced_model = torch.jit.trace(model, (dummy_input, torch.tensor([False]).view(1, -1), ))
         # traced_model.save(model_path)
-        
+        device = model.device
+        model = model.to("cpu")
         scripted_model = torch.jit.script(model)  # Script the model
         torch.jit.save(scripted_model, model_path)
         print(f"Scripted model exported to {model_path}")
+        
+        model.to(device)
 
         # Save the evaluation results
         if eval_result is not None:

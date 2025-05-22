@@ -274,24 +274,12 @@ class BertRecDataset(Dataset):
         seq_len = len(input_ids)
         # Pad if needed
         padding_len = self.max_len - len(input_ids)
-        input_ids = input_ids + [self.pad_token] * padding_len
+        input_ids = [self.pad_token] * padding_len + input_ids
         
         return {
             'user_id': user_id,
             'input_ids': torch.tensor(input_ids, dtype=torch.long)
         }
-        
-    def _apply_train_masking(self, sequence):
-        """Apply random masking to sequence for BERT-style training."""
-        input_ids = list(sequence)
-        labels = [self.pad_token] * len(sequence)
-        
-        for i in range(len(input_ids)):
-            if random.random() < self.mask_prob:
-                labels[i] = input_ids[i]  # Save original ID in labels
-                input_ids[i] = self.mask_token  # Mask the item
-                
-        return input_ids, labels
 
 def generate_dataframe(config):
     """

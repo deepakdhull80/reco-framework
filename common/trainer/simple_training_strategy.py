@@ -30,7 +30,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
                 g_ndcg = ndcg
                 logger.info(f"Best NDCG: {g_ndcg}")
                 # Save the model state
-                SimpleTrainerPipeline.export_model(self.artifact_dir, model.state_dict(), None, None, training_done=False)
+                SimpleTrainerPipeline.export_model(self.artifact_dir, model, None, None, training_done=False)
             logger.info(f"\nEval HR: {hr}, NDCG: {ndcg}")
             self.scheduler.step()
             self.sparse_scheduler.step()
