@@ -12,6 +12,24 @@ from common.data.feature_config import FeatureType
 from bert4rec.model_config import Bert4RecConfig
 
 
+class BertEmbeddings(nn.Module):
+    def __init__(self, num_items: int, hidden_size: int, max_len: int, pad_token: int, dropout_prob: float) -> None:
+        super().__init__()
+        self.item_embeddings = nn.Embedding(num_items, hidden_size, padding_idx=pad_token)
+        self.position_embeddings = nn.Embedding(max_len, hidden_size)
+        self.LayerNorm = nn.LayerNorm(hidden_size, eps=1e-12)
+        self.dropout = nn.Dropout(dropout_prob)
+        self.register_buffer("position_ids", torch.arange(max_len).expand((1, -1)))
+
+    def forward(self, input_ids):
+        seq_length = input_ids.size(1)
+        position_ids = self.position_ids[:, :seq_length]
+        item_embeddings = self.item_embeddings(input_ids)
+        position_embeddings = self.position_embeddings(position_ids)
+        embeddings = item_embeddings + position_embeddings
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+        return embeddings
 
 class Bert4RecModule(nn.Module):
     def __init__(self, model_config: Bert4RecConfig) -> None:
@@ -20,13 +38,33 @@ class Bert4RecModule(nn.Module):
         self.history_feature = model_config.features.get_feature_by_name(model_config.history_feature_name)
         self.history_feature_name = self.history_feature.name
         self.items_cardinality = self.history_feature.cardinality
+        self.max_len = self.history_feature.max_length
         self.latent_dim = model_config.latent_dim
         self.padding_key = model_config.padding_key
         self.mask_key = model_config.mask_key
-        self.item_embedding_table = nn.Embedding(self.items_cardinality, self.latent_dim)
+        # self.item_embedding_table = nn.Embedding(self.items_cardinality, self.latent_dim)
+        self.item_embedding_layer = BertEmbeddings(
+            num_items=self.items_cardinality,
+            hidden_size=self.latent_dim,
+            max_len=self.max_len,
+            pad_token=self.padding_key,
+            dropout_prob=model_config.tl_dropout
+        )
         self.tl_heads = model_config.tl_heads
         
-        self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=model_config.tl_dropout, bias=model_config.bias_enable) for _ in range(model_config.tl_layers)])
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=model_config.latent_dim, 
+            nhead=model_config.tl_heads,
+            dim_feedforward=model_config.latent_dim*4, 
+            dropout=model_config.tl_dropout,
+            activation='gelu', 
+            batch_first=True
+        )
+        self.transformer_layers = nn.TransformerEncoder(
+            encoder_layer, 
+            num_layers=model_config.tl_layers
+        )
+        # self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=model_config.tl_dropout, bias=model_config.bias_enable) for _ in range(model_config.tl_layers)])
         self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*4], bias=model_config.bias_enable)
         self.final_projection = nn.Linear(self.latent_dim, self.items_cardinality, bias=model_config.bias_enable)
     
@@ -71,14 +109,12 @@ class Bert4RecModule(nn.Module):
             history_feature_ids[:, -1] = self.mask_key
         
         # item id representation
-        x = self.item_embedding_table(history_feature_ids)
-        
-        # TODO: position embedding
+        x = self.item_embedding_layer(history_feature_ids)
         
         # pass through transformer
-        for mod in self.transformer_layers:
-            x = mod(x, key_padding_mask=history_mask)
-        
+        # for mod in self.transformer_layers:
+        #     x = mod(x, key_padding_mask=history_mask)
+        x = self.transformer_layers(x, src_key_padding_mask=history_mask)
         # projection layer: (B, S, D)
         x = self.projection_layer(x)
         logits = self._item_logits(x, cloze_masking=cloze_masking)

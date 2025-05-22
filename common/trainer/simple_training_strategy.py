@@ -33,9 +33,12 @@ class SimpleTrainingStrategy(TrainingStrategy):
                 SimpleTrainerPipeline.export_model(self.artifact_dir, model, None, None, training_done=False)
             logger.info(f"\nEval HR: {hr}, NDCG: {ndcg}")
             self.scheduler.step()
-            self.sparse_scheduler.step()
+            if self.sparse_scheduler is not None:
+                self.sparse_scheduler.step()
             current_lr = self.scheduler.get_last_lr()[0]
-            current_sparse_lr = self.sparse_scheduler.get_last_lr()[0]
+            current_sparse_lr = -1
+            if self.sparse_scheduler is not None:
+                current_sparse_lr = self.sparse_scheduler.get_last_lr()[0]
             print(f"  Current Learning Rate: {current_lr:.6f}, Sparse Learning Rate: {current_sparse_lr:.6f}")
             print("*" * 20)
     
@@ -58,13 +61,15 @@ class SimpleTrainingStrategy(TrainingStrategy):
                 raise
             
             self.optimizer.zero_grad()
-            self.sparse_optimizer.zero_grad()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.zero_grad()
             
             _loss, _metrics = model.train_step(batch)
             _loss.backward()
             
             self.optimizer.step()
-            self.sparse_optimizer.step()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.step()
             
             loss += _loss.cpu().item()
             metrics, loss = self.update_metrics(idx, metrics, _metrics, loss, metric_history)
@@ -102,11 +107,16 @@ class SimpleTrainingStrategy(TrainingStrategy):
         
         # Reinitialize optimizers if they are not already initialized or if parameters change
         if not self._optimizer_initialized or not hasattr(self, 'optimizer'):
-            self.sparse_optimizer: torch.optim.Optimizer = sparse_optimizer_clz(sparse_params, self.model_config.sparse_lr)
+            if len(sparse_params) != 0:
+                self.sparse_optimizer: torch.optim.Optimizer = sparse_optimizer_clz(sparse_params, self.model_config.sparse_lr)
+                self.sparse_scheduler = CosineAnnealingLR(self.sparse_optimizer, self.trainer_config.epochs//2)
+                self.sparse_optimizer.zero_grad()
+            else:
+                self.sparse_optimizer = None
+                self.sparse_scheduler = None
+                
             self.optimizer: torch.optim.Optimizer = optimizer_clz(non_sparse_params, self.model_config.lr)
             self.scheduler = CosineAnnealingLR(self.optimizer, self.trainer_config.epochs//2)
-            self.sparse_scheduler = CosineAnnealingLR(self.sparse_optimizer, self.trainer_config.epochs//2)
-            self.sparse_optimizer.zero_grad()
             self.optimizer.zero_grad()
             self._optimizer_initialized = True
         
@@ -132,13 +142,15 @@ class SimpleTrainingStrategy(TrainingStrategy):
                 raise
             
             self.optimizer.zero_grad()
-            self.sparse_optimizer.zero_grad()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.zero_grad()
             
             _loss, _metrics = model.train_step(batch)
             _loss.backward()
             
             self.optimizer.step()
-            self.sparse_optimizer.step()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.step()
             _loss = _loss.cpu().item()
             metrics, loss = self.update_metrics(idx, metrics, _metrics, _loss, metric_history)
             num_batches += 1
