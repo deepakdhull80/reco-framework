@@ -335,14 +335,14 @@ def generate_dataframe(config):
     print(f"Number of items (including special tokens): {num_items}")
     # Step 2: Create a BertRecDataset instance
     dfs = []
-    for seq in [train_s, eval_s, test_s]:
+    for seq, mode in zip([train_s, eval_s, test_s], ["train", "eval", "test"]):
         dataset = BertRecDataset(
             user_sequences=seq,
             max_len=config.max_len,
             mask_token=config.mask_token,
             pad_token=config.pad_token,
-            mask_prob=config.mask_prob,
-            mode='train',  # Use training mode to apply random masking
+            mask_prob=config.mask_prob if mode == 'train' else 0.0,
+            mode=mode,  # Use training mode to apply random masking
             min_seq_len=config.min_seq_len,
             stride=config.stride
         )
