@@ -2,11 +2,7 @@ from typing import Tuple, Dict, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import (
-    average_precision_score, roc_auc_score, f1_score
-    )
 
-from common.module.layers import TransformerLayer, LinearLayer
 from common.model import ModelWrapper
 from common.data.feature_config import FeatureType
 from bert4rec.model_config import Bert4RecConfig
@@ -42,7 +38,7 @@ class Bert4RecModule(nn.Module):
         self.latent_dim = model_config.latent_dim
         self.padding_key = model_config.padding_key
         self.mask_key = model_config.mask_key
-        # self.item_embedding_table = nn.Embedding(self.items_cardinality, self.latent_dim)
+
         self.item_embedding_layer = BertEmbeddings(
             num_items=self.items_cardinality,
             hidden_size=self.latent_dim,
@@ -64,33 +60,14 @@ class Bert4RecModule(nn.Module):
             encoder_layer, 
             num_layers=model_config.tl_layers
         )
-        # self.transformer_layers = nn.ModuleList([TransformerLayer(self.latent_dim, self.tl_heads, dropout=model_config.tl_dropout, bias=model_config.bias_enable) for _ in range(model_config.tl_layers)])
-        self.projection_layer = LinearLayer(self.latent_dim, [self.latent_dim*4], bias=model_config.bias_enable)
         self.final_projection = nn.Linear(self.latent_dim, self.items_cardinality, bias=model_config.bias_enable)
     
-    def _item_logits(self, x: torch.Tensor, cloze_masking: Optional[torch.Tensor] = None) -> torch.Tensor:
-        # item table lookup (cardinality, dimension)
-        b, s, d = x.shape
-        if cloze_masking is not None and cloze_masking.shape[1] == s:
-            # during training
-            x = x.view(-1, d)
-            cloze_masking = cloze_masking.view(-1)
-            x = x[cloze_masking]
-        else:
-            # expecting during inference
-            x = x[:, -1, :]
-            x = x.view(b, d)
-        
-        # x = torch.einsum("bd,cd->bc", x, self.item_embedding_table.weight)
-        x = self.final_projection(x)
-        return x    
-    
-    def forward(self, batch: Dict[str, torch.Tensor], cloze_masking: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, batch: Dict[str, torch.Tensor], attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """ return the output of bert4rec model.
 
         Args:
             batch (Dict[str, torch.Tensor]):
-            cloze_masking (Optional[torch.Tensor]): cloze masking for training. If None, then it is inference.
+            attention_mask (Optional[torch.Tensor]): 
 
         Returns:
             torch.Tensor: logits for every head
@@ -98,26 +75,10 @@ class Bert4RecModule(nn.Module):
         
         # history feature (B, S)
         history_feature_ids = batch[self.history_feature_name]
-        device = history_feature_ids.device
-        
-        B, S = history_feature_ids.shape
-        history_mask = (history_feature_ids == self.padding_key).to(device)
-        
-        if cloze_masking is not None and cloze_masking.shape[1] == S:
-            history_feature_ids = history_feature_ids.masked_fill(cloze_masking, self.mask_key)
-        else:
-            history_feature_ids[:, -1] = self.mask_key
-        
         # item id representation
         x = self.item_embedding_layer(history_feature_ids)
-        
-        # pass through transformer
-        # for mod in self.transformer_layers:
-        #     x = mod(x, key_padding_mask=history_mask)
-        x = self.transformer_layers(x, src_key_padding_mask=history_mask)
-        # projection layer: (B, S, D)
-        x = self.projection_layer(x)
-        logits = self._item_logits(x, cloze_masking=cloze_masking)
+        x = self.transformer_layers(x, src_key_padding_mask=attention_mask)
+        logits = self.final_projection(x)
         return logits
 
 class Bert4RecModel(ModelWrapper):
@@ -125,15 +86,18 @@ class Bert4RecModel(ModelWrapper):
         super().__init__(model_config, device)
         self.model_config = model_config
         self.history_feature_name = model_config.history_feature_name
+        self.attention_mask_feature_name = model_config.attention_mask_feature_name
+        self.label_feature_name = model_config.label_feature_name
         self.mask_key = model_config.mask_key
         self.padding_key = model_config.padding_key
         self.target_id_name = model_config.target_id_name
         self.bert_module = Bert4RecModule(model_config)
         self.device = device
         self.cloze_masking_factor = model_config.cloze_masking_factor
+        self.criterion = nn.CrossEntropyLoss()
         
         # initialize model weights
-        self._initialize_bert4rec_weights()
+        # self._initialize_bert4rec_weights()
     
     def _initialize_bert4rec_weights(self, mean=0.0, std=0.02):
         for module in self.bert_module.modules():
@@ -154,51 +118,44 @@ class Bert4RecModel(ModelWrapper):
                 batch[key] = value  # Preserve non-tensor values as it is
         return batch
     
-    def forward(self, batch: Dict[str, torch.Tensor], train: bool=False) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         self._transform_device(batch)
-        if train:
-            history_feature_ids = batch[self.history_feature_name]
-            B, S = history_feature_ids.shape
-            history_mask = (history_feature_ids == self.padding_key).to(self.device)
-            cloze_masking = (torch.rand(B, S) < self.cloze_masking_factor).to(torch.bool).to(self.device)
-            cloze_masking = cloze_masking.masked_fill(history_mask, 0)
-        else:
-            cloze_masking = torch.randn(1, 1)
         
-        bert_output = self.bert_module(batch, cloze_masking=cloze_masking)
-        return bert_output, cloze_masking
+        if self.attention_mask_feature_name in batch:
+            attention_mask = batch[self.attention_mask_feature_name]
+            attention_mask = (attention_mask == 0)
+        else:
+            attention_mask = None
+        
+        bert_output = self.bert_module(batch, attention_mask=attention_mask)
+        return bert_output
     
     def train_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
-        labels = batch[self.history_feature_name].view(-1).to(self.device)
-        bert_output, cloze_masking = self.forward(batch, train=True)
-        cloze_masking = cloze_masking.view(-1)
-        labels = labels[cloze_masking]  # Align labels with masked positions
-
+        metrics = {}
+        labels = batch[self.label_feature_name].to(self.device)
+        bert_output = self.forward(batch)
+        
+        mask_positions = (labels != self.padding_key)
+        labels = labels[mask_positions]  # Align labels with masked positions
+        logits = bert_output[mask_positions]
+        
         # Calculate loss (use raw logits, not probabilities)
-        loss = torch.nn.functional.cross_entropy(bert_output, labels)
-
-        with torch.no_grad():
-            metrics = {}
-            # Get predictions
-            # p_out = torch.argmax(bert_output, dim=-1)
-            # Calculate F1 score
-            # metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.cpu().numpy(), average='micro')
+        loss = self.criterion(logits, labels)
         return loss, metrics
     
     @torch.no_grad()
     def val_step(self, batch: nn.ModuleDict) -> Tuple[torch.tensor, dict]:
         
-        labels = batch[self.history_feature_name][:, -1].to(self.device)  # Ensure this aligns with your masking strategy
-        bert_output, cloze_masking = self.forward(batch)
+        metrics = {}
+        labels = batch[self.label_feature_name].to(self.device)
+        bert_output = self.forward(batch)
+        
+        mask_positions = (labels != self.padding_key)
+        labels = labels[mask_positions]  # Align labels with masked positions
+        logits = bert_output[mask_positions]
 
         # Calculate loss (use raw logits, not probabilities)
-        loss = torch.nn.functional.cross_entropy(bert_output, labels)
-
-        metrics = {}
-        # Get predictions
-        # p_out = torch.argmax(bert_output, dim=-1)
-        # Calculate F1 score
-        # metrics['micro_f1_score'] = f1_score(labels.cpu().numpy(), p_out.cpu().numpy(), average='micro')
+        loss = self.criterion(logits, labels)
         return loss, metrics
     
     def get_optimizer_clz(self, clz):

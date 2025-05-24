@@ -13,6 +13,8 @@ query_id_name: UserID
 item_id_name: MovieID
 target_id_name: Rating
 history_feature_name: history_feature
+label_feature_name: labels
+attention_mask_feature_name: attention_mask
 latent_dim: 256
 padding_key: 0
 mask_key: 1
@@ -21,7 +23,10 @@ tl_heads: 2
 tl_layers: 2
 tl_dropout: 0.1
 bias_enable: true
+eval_k: 10
 
 features:
   history_features:
     - {name: history_feature, tower: query, f_dtype: long, cardinality: 3418, padding_key: 0, pad_at_end: false, max_length: 200}
+    - {name: attention_mask, tower: query, f_dtype: long, cardinality: 3418, padding_key: 0, pad_at_end: false, max_length: 200}
+    - {name: labels, tower: query, f_dtype: long, cardinality: 3418, padding_key: 0, pad_at_end: false, max_length: 200}

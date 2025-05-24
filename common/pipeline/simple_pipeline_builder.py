@@ -5,6 +5,7 @@ import numpy as np
 from typing import List
 from common.pipeline_builder import TrainerPipeline
 from datetime import datetime
+from common.module import generate_recommendations
 
 class SimpleTrainerPipeline(TrainerPipeline):
     
@@ -25,6 +26,16 @@ class SimpleTrainerPipeline(TrainerPipeline):
         self.persist_data_sample(train_dl, f"{self.artifact_dir}/train.npz")
         self.persist_data_sample(val_dl, f"{self.artifact_dir}/val.npz")
         SimpleTrainerPipeline.export_model(self.artifact_dir, model, None, None, training_done=True)
+        
+        generate_recommendations(
+            model_path=f"{self.artifact_dir}/model_scripted_best.pt",
+            meta_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/mappings.npz",
+            val_df_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/val.pq",
+            dir_path=f"{self.artifact_dir}/recommendations",
+            device=model.device,
+            top_k=5,
+            max_samples=50
+        )
         
         return
 

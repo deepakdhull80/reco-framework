@@ -1,3 +1,3 @@
 from .evaluate import (
-    evaluate
+    evaluate, generate_recommendations
     )

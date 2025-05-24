@@ -3,6 +3,8 @@ from common.model import ModelConfig
 
 class Bert4RecConfig(ModelConfig):
     history_feature_name: str = 'history_feature'
+    label_feature_name: str = 'labels'
+    attention_mask_feature_name: str = 'attention_mask'
     latent_dim: int = 32
     padding_key: int = 0
     mask_key: int = 1
@@ -13,6 +15,7 @@ class Bert4RecConfig(ModelConfig):
     tl_dropout: float = 0.1
     bias_enable: bool = True
     model_dir: str = "artifacts"
+    eval_k: int = 10
     
     def transformation_step(self, data: dict):
         cardinality = self.features.get_feature_by_name(self.history_feature_name).cardinality

@@ -25,8 +25,8 @@ class Config:
     # Data parameters for model/dataset
     max_len = 200        # Maximum sequence length for model input
     mask_prob = 0.2      # Probability of masking an item for training
-    mask_token = 0       # Special token ID for masking
-    pad_token = 1        # Special token ID for padding
+    mask_token = 1       # Special token ID for masking
+    pad_token = 0        # Special token ID for padding
     num_items = None     # Will be set dynamically after preprocessing
     
     # Sliding window parameters for training sample generation
@@ -270,16 +270,55 @@ class BertRecDataset(Dataset):
         
     def __getitem__(self, index):
         user_id, sequence = self.samples[index]
-        input_ids = list(sequence)
-        seq_len = len(input_ids)
+        
+        if self.mode == 'train':
+            # Apply random masking for training
+            input_ids, labels = self._apply_train_masking(sequence)
+        else:
+            # For evaluation/testing, always mask the last item
+            if len(sequence) < 2:
+                # Handle edge case with very short sequence
+                input_ids = [self.pad_token] * (self.max_len - 1) + [self.mask_token]
+                labels = [self.pad_token] * self.max_len
+                seq_len = 1
+            else:
+                # Normal case: predict the last item
+                input_ids = list(sequence[:-1]) + [self.mask_token]
+                labels = [self.pad_token] * (len(sequence) - 1) + [sequence[-1]]
+                seq_len = len(input_ids)
+                
+        # Truncate if too long
+        if len(input_ids) > self.max_len:
+            input_ids = input_ids[-self.max_len:]
+            labels = labels[-self.max_len:]
+            seq_len = self.max_len
+        else:
+            seq_len = len(input_ids)
+            
         # Pad if needed
         padding_len = self.max_len - len(input_ids)
-        input_ids = [self.pad_token] * padding_len + input_ids
+        attention_mask = [1] * seq_len + [0] * padding_len
+        input_ids = input_ids + [self.pad_token] * padding_len
+        labels = labels + [self.pad_token] * padding_len
         
         return {
             'user_id': user_id,
-            'input_ids': torch.tensor(input_ids, dtype=torch.long)
+            'input_ids': torch.tensor(input_ids, dtype=torch.long),
+            'attention_mask': torch.tensor(attention_mask, dtype=torch.long),
+            'labels': torch.tensor(labels, dtype=torch.long)
         }
+        
+    def _apply_train_masking(self, sequence):
+        """Apply random masking to sequence for BERT-style training."""
+        input_ids = list(sequence)
+        labels = [self.pad_token] * len(sequence)
+        
+        for i in range(len(input_ids)):
+            if random.random() < self.mask_prob:
+                labels[i] = input_ids[i]  # Save original ID in labels
+                input_ids[i] = self.mask_token  # Mask the item
+                
+        return input_ids, labels
 
 def generate_dataframe(config):
     """
@@ -315,6 +354,8 @@ def generate_dataframe(config):
             data.append({
                 'user_id': sample['user_id'],
                 'history_feature': sample['input_ids'].tolist(),  # Convert tensor to list
+                "attention_mask": sample['attention_mask'].tolist(),  # Convert tensor to list
+                'labels': sample['labels'].tolist()  # Convert tensor to list
             })
 
         # Step 4: Create a DataFrame

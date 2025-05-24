@@ -25,7 +25,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
             # self.train_val(epoch, train_dl, val_dl, model)
             self.train(epoch, train_dl, model)
             self.val(epoch, val_dl, model)
-            hr, ndcg = evaluate(model, val_dl, eval_k=10)
+            hr, ndcg = evaluate(model, val_dl, model.device, model_config=self.model_config)
             if g_ndcg < ndcg:
                 g_ndcg = ndcg
                 logger.info(f"Best NDCG: {g_ndcg}")
