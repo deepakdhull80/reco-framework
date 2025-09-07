@@ -169,3 +169,4 @@ checkpoint
 artifacts
 test_*.py
 dataset
+.vscode

@@ -29,4 +29,5 @@ fi
 
 # Train bert4rec model
 export HYDRA_FULL_ERROR=1
+export PYTORCH_ENABLE_MPS_FALLBACK=1
 python main.py -cn train-bert4rec data.base_path=$data_dir device=$device

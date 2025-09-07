@@ -19,6 +19,8 @@ class SimpleTrainingStrategy(TrainingStrategy):
         self.artifact_dir = self.model_config.model_dir
     
     def fit(self, train_dl, val_dl, model: nn.Module):
+        if not self._optimizer_initialized:
+            self._init_optimizer(model)
         g_ndcg = 0
         for epoch in range(self.trainer_config.epochs):
             logger.info("Training Epoch %d" % epoch)
@@ -41,56 +43,6 @@ class SimpleTrainingStrategy(TrainingStrategy):
                 current_sparse_lr = self.sparse_scheduler.get_last_lr()[0]
             print(f"  Current Learning Rate: {current_lr:.6f}, Sparse Learning Rate: {current_sparse_lr:.6f}")
             print("*" * 20)
-    
-    def train_val(self, epoch, train_dl, val_dl, model: nn.Module):
-        loss = 0
-        metrics = defaultdict(int)
-        metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
-        model.train()
-        if self._optimizer_initialized is False:
-            self._init_optimizer(model)
-        train_dl = iter(train_dl)
-        idx = 0
-        while True:
-            try:
-                batch = next(train_dl)
-            except StopIteration:
-                break
-            except Exception as e:
-                logger.error(f"Error during training: {e}")
-                raise
-            
-            self.optimizer.zero_grad()
-            if self.sparse_optimizer is not None:
-                self.sparse_optimizer.zero_grad()
-            
-            _loss, _metrics = model.train_step(batch)
-            _loss.backward()
-            
-            self.optimizer.step()
-            if self.sparse_optimizer is not None:
-                self.sparse_optimizer.step()
-            
-            loss += _loss.cpu().item()
-            metrics, loss = self.update_metrics(idx, metrics, _metrics, loss, metric_history)
-            if (idx+1) % self.log_kth_train_step == 0:
-                self.print_log(
-                    epoch=epoch,
-                    idx=idx,
-                    loss=loss,
-                    metrics=metrics,
-                    train=True
-                )
-                self.val(epoch, val_dl, model)
-            idx += 1
-        self.print_log(
-                epoch=epoch,
-                idx=-1,
-                loss=loss,
-                metrics=metrics,
-                train=True
-            )
-        return loss, metrics
     
     def _init_optimizer(self, model: nn.Module):
         print("Initializing optimizer")
@@ -125,8 +77,7 @@ class SimpleTrainingStrategy(TrainingStrategy):
         metrics = defaultdict(int)
         metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
         model.train()
-        if self._optimizer_initialized is False:
-            self._init_optimizer(model)
+        
         idx = 0
         train_dl = iter(train_dl)
         _loss = 0
