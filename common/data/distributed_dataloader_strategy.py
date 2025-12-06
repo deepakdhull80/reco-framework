@@ -36,75 +36,100 @@ class DistributedDataLoaderStrategy(SimpleDataLoaderStrategy):
     
     def get_dataloader(self) -> Tuple[DataLoader, DataLoader]:
         """
-        Create distributed dataloaders with DistributedSampler.
+        Create distributed dataloaders for IterableDataset.
+        
+        Note: SimpleDataGenerator handles distributed partitioning internally,
+        so we don't need DistributedSampler or worker_init_fn.
         
         Returns:
             Tuple of (train_dataloader, val_dataloader)
         """
+        from torch.utils.data import IterableDataset
+        
         train_gen, val_gen = self.get_generator()
         mini_batch_size = self.pipeline_cfg.dataloader.mini_batch_size
         batch_size = self.pipeline_cfg.dataloader.batch_size
         
         no_mini_batches = int(batch_size / mini_batch_size)
         
-        # Create DistributedSampler if in distributed mode
-        if self.is_distributed:
-            train_sampler = DistributedSampler(
-                train_gen,
-                num_replicas=self.world_size,
-                rank=self.rank,
-                shuffle=True,
-                drop_last=False
-            )
-            val_sampler = DistributedSampler(
-                val_gen,
-                num_replicas=self.world_size,
-                rank=self.rank,
-                shuffle=False,
-                drop_last=False
-            )
-            
-            # When using DistributedSampler, shuffle must be False in DataLoader
-            train_shuffle = False
-            val_shuffle = False
-            
+        # Check if dataset is IterableDataset
+        is_iterable = isinstance(train_gen, IterableDataset)
+        
+        if is_iterable:
+            # IterableDataset - no sampler needed
+            # SimpleDataGenerator handles distributed partitioning internally
             logger.info(
-                f"Created DistributedSampler: "
-                f"train_samples={len(train_gen)}, val_samples={len(val_gen)}, "
-                f"samples_per_gpu={len(train_gen) // self.world_size}"
+                f"Using IterableDataset on rank {self.rank}/{self.world_size}"
             )
+            
+            train_dl = DataLoader(
+                dataset=train_gen,
+                batch_size=no_mini_batches,
+                collate_fn=_collate_fn,
+                num_workers=self.dataloader_config.num_workers,
+                pin_memory=torch.cuda.is_available(),
+            )
+            
+            val_dl = DataLoader(
+                dataset=val_gen,
+                batch_size=no_mini_batches,
+                collate_fn=_collate_fn,
+                num_workers=self.dataloader_config.num_workers,
+                pin_memory=torch.cuda.is_available(),
+            )
+            
         else:
-            train_sampler = None
-            val_sampler = None
-            train_shuffle = True
-            val_shuffle = False
-        
-        # Create DataLoaders
-        train_dl = DataLoader(
-            dataset=train_gen,
-            batch_size=no_mini_batches,
-            sampler=train_sampler,
-            shuffle=train_shuffle if train_sampler is None else False,
-            collate_fn=_collate_fn,
-            num_workers=self.dataloader_config.num_workers,
-            pin_memory=torch.cuda.is_available(),
-            drop_last=False
-        )
-        
-        val_dl = DataLoader(
-            dataset=val_gen,
-            batch_size=no_mini_batches,
-            sampler=val_sampler,
-            shuffle=val_shuffle if val_sampler is None else False,
-            collate_fn=_collate_fn,
-            num_workers=self.dataloader_config.num_workers,
-            pin_memory=torch.cuda.is_available(),
-            drop_last=False
-        )
+            # Map-style dataset - use DistributedSampler if in distributed mode
+            if self.is_distributed:
+                train_sampler = DistributedSampler(
+                    train_gen,
+                    num_replicas=self.world_size,
+                    rank=self.rank,
+                    shuffle=True,
+                    drop_last=False
+                )
+                val_sampler = DistributedSampler(
+                    val_gen,
+                    num_replicas=self.world_size,
+                    rank=self.rank,
+                    shuffle=False,
+                    drop_last=False
+                )
+                
+                logger.info(
+                    f"Created DistributedSampler: "
+                    f"train_samples={len(train_gen)}, val_samples={len(val_gen)}, "
+                    f"samples_per_gpu={len(train_gen) // self.world_size}"
+                )
+            else:
+                train_sampler = None
+                val_sampler = None
+            
+            # Create DataLoaders
+            train_dl = DataLoader(
+                dataset=train_gen,
+                batch_size=no_mini_batches,
+                sampler=train_sampler,
+                shuffle=True if train_sampler is None else False,
+                collate_fn=_collate_fn,
+                num_workers=self.dataloader_config.num_workers,
+                pin_memory=torch.cuda.is_available(),
+                drop_last=False
+            )
+            
+            val_dl = DataLoader(
+                dataset=val_gen,
+                batch_size=no_mini_batches,
+                sampler=val_sampler,
+                shuffle=False,
+                collate_fn=_collate_fn,
+                num_workers=self.dataloader_config.num_workers,
+                pin_memory=torch.cuda.is_available(),
+                drop_last=False
+            )
         
         logger.info(
-            f"Created DataLoaders: "
-            f"train_batches={len(train_dl)}, val_batches={len(val_dl)}"
+            f"Created DataLoaders on rank {self.rank}"
         )
         
         return train_dl, val_dl
