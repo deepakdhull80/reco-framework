@@ -1,0 +1,19 @@
+defaults:
+  - dataloader: distributed
+  - model: bert4rec
+  - data: movielens
+  - trainer: default
+
+dataloader:
+  mini_batch_size: 256
+  batch_size: 256
+  num_workers: 4
+
+trainer:
+  epochs: 100
+
+pipeline_name: simple
+env: pytorch
+device: cuda
+distributed: true
+backend: nccl
