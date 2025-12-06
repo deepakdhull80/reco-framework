@@ -42,13 +42,15 @@ class DistributedTrainingStrategy(SimpleTrainingStrategy):
             val_dl: Validation dataloader with DistributedSampler
             model: Model to train (will be wrapped with DDP)
         """
+        # Initialize optimizer BEFORE wrapping model with DDP
+        # This is important because DDP wrapper doesn't expose custom model methods
+        if not self._optimizer_initialized:
+            self._init_optimizer(model)
+        
         # Wrap model with DDP if in distributed mode
         if self.is_distributed and not isinstance(model, DDP):
             model = self._wrap_model_ddp(model)
-        
-        # Initialize optimizer after wrapping model
-        if not self._optimizer_initialized:
-            self._init_optimizer(model)
+
         
         g_ndcg = 0
         for epoch in range(self.trainer_config.epochs):
