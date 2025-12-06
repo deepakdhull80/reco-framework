@@ -5,8 +5,8 @@ defaults:
   - trainer: default
 
 dataloader:
-  mini_batch_size: ${eval:2**10}
-  batch_size: ${eval:2**10}
+  mini_batch_size: ${eval:2**8}
+  batch_size: ${eval:2**8}
   num_workers: 4
 
 trainer:
