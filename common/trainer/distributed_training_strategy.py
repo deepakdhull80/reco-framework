@@ -127,8 +127,69 @@ class DistributedTrainingStrategy(SimpleTrainingStrategy):
     def train(self, epoch, train_dl, model: nn.Module):
         """
         Training loop with metric synchronization across processes.
+        Handles DDP-wrapped models by accessing custom methods via model.module.
         """
-        loss, metrics = super().train(epoch, train_dl, model)
+        from collections import defaultdict, deque
+        
+        loss = 0
+        metrics = defaultdict(int)
+        metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
+        
+        # Get the actual model (unwrap DDP if needed)
+        actual_model = model.module if isinstance(model, DDP) else model
+        
+        # Set to training mode (works on both DDP and regular models)
+        model.train()
+        
+        idx = 0
+        train_dl = iter(train_dl)
+        _loss = 0
+        num_batches = 0
+
+        while True:
+            try:
+                batch = next(train_dl)
+            except StopIteration:
+                break
+            except Exception as e:
+                logger.error(f"Error during training: {e}")
+                raise
+            
+            self.optimizer.zero_grad()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.zero_grad()
+            
+            # Call custom train_step on the actual model
+            _loss, _metrics = actual_model.train_step(batch)
+            _loss.backward()  # Backward through DDP wrapper if present
+            
+            self.optimizer.step()
+            if self.sparse_optimizer is not None:
+                self.sparse_optimizer.step()
+            _loss = _loss.cpu().item()
+            metrics, loss = self.update_metrics(idx, metrics, _metrics, _loss, metric_history)
+            num_batches += 1
+
+            if (idx + 1) % self.log_kth_train_step == 0:
+                self.print_log(
+                    epoch=epoch,
+                    idx=idx,
+                    loss=loss,
+                    metrics=metrics,
+                    train=True,
+                    _c_loss=_loss
+                )
+            idx += 1
+
+        # Final logging
+        self.print_log(
+            epoch=epoch,
+            idx=-1,
+            loss=loss,
+            metrics=metrics,
+            train=True,
+            _c_loss=None
+        )
         
         # Synchronize metrics across all processes
         if self.is_distributed:
@@ -139,11 +200,53 @@ class DistributedTrainingStrategy(SimpleTrainingStrategy):
         
         return loss, metrics
     
+    @torch.no_grad()
     def val(self, epoch, val_dl, model: nn.Module):
         """
         Validation loop with metric synchronization across processes.
+        Handles DDP-wrapped models by accessing custom methods via model.module.
         """
-        loss, metrics = super().val(epoch, val_dl, model)
+        from collections import defaultdict, deque
+        
+        loss = 0
+        metrics = defaultdict(int)
+        metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
+        
+        # Get the actual model (unwrap DDP if needed)
+        actual_model = model.module if isinstance(model, DDP) else model
+        
+        # Set to eval mode (works on both DDP and regular models)
+        model.eval()
+        
+        _loss = 0
+        num_batches = 0
+
+        for idx, batch in enumerate(val_dl):
+            # Call custom val_step on the actual model
+            _loss, _metrics = actual_model.val_step(batch)
+            _loss = _loss.cpu().item()
+            metrics, loss = self.update_metrics(idx, metrics, _metrics, _loss, metric_history)
+            num_batches += 1
+
+            if (idx + 1) % self.log_kth_train_step == 0:
+                self.print_log(
+                    epoch=epoch,
+                    idx=idx,
+                    loss=loss,
+                    metrics=metrics,
+                    train=False,
+                    _c_loss=_loss
+                )
+
+        # Final logging
+        self.print_log(
+            epoch=epoch,
+            idx=-1,
+            loss=loss,
+            metrics=metrics,
+            train=False,
+            _c_loss=None
+        )
         
         # Synchronize metrics across all processes
         if self.is_distributed:
@@ -153,6 +256,7 @@ class DistributedTrainingStrategy(SimpleTrainingStrategy):
             metrics = reduced_metrics
         
         return loss, metrics
+
     
     def print_log(self, epoch, idx, loss, metrics, train: bool = True, _c_loss=None):
         """
