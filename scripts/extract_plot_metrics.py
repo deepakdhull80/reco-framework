@@ -8,7 +8,8 @@ def extract_metrics(log_file_path):
     """
     Reads a model training log file and extracts specified metrics (HR, NDCG, 
     Learning Rate, Train AVGLoss, Eval AVGLoss) across epochs.
-
+    The use of re.search() ensures patterns are found anywhere in the line.
+    
     Args:
         log_file_path (str): The path to the log file.
     
@@ -49,9 +50,10 @@ def extract_metrics(log_file_path):
     try:
         with open(log_file_path, 'r') as f:
             for line in f:
+                
                 # A. Check for Performance Metrics (HR, NDCG, LR)
                 
-                match_hr_ndcg = hr_ndcg_pattern.search(line)
+                match_hr_ndcg = hr_ndcg_pattern.search(line) 
                 if match_hr_ndcg:
                     latest_hr = float(match_hr_ndcg.group(1))
                     latest_ndcg = float(match_hr_ndcg.group(2))
@@ -79,7 +81,6 @@ def extract_metrics(log_file_path):
                     if (current_epoch is not None and 
                         latest_hr is not None and 
                         latest_ndcg is not None and 
-                        latest_lr is not None and
                         latest_train_loss is not None and
                         latest_eval_loss is not None):
                         
@@ -87,7 +88,7 @@ def extract_metrics(log_file_path):
                             'epoch': current_epoch,
                             'HR': latest_hr,
                             'NDCG': latest_ndcg,
-                            'LR': latest_lr,
+                            'LR': latest_lr, 
                             'Train_Loss': latest_train_loss,
                             'Eval_Loss': latest_eval_loss,
                         })
@@ -96,7 +97,7 @@ def extract_metrics(log_file_path):
                         current_epoch = None
                         latest_hr = None
                         latest_ndcg = None
-                        latest_lr = None
+                        # Keep latest_lr
                         latest_train_loss = None
                         latest_eval_loss = None
                     
@@ -111,7 +112,6 @@ def extract_metrics(log_file_path):
         print("No complete metric data points were extracted from the log file.")
         return None
 
-    # Prepare Data for Plotting using Pandas DataFrame
     df = pd.DataFrame(data_points).drop_duplicates(subset=['epoch'], keep='last')
     print(f"\nSuccessfully extracted {len(df)} epoch data points.")
     
@@ -137,8 +137,8 @@ def generate_output_files(df, output_folder):
 
     # --- Plot 1: Performance Metrics (HR and NDCG) ---
     plt.figure(figsize=(10, 6))
-    plt.plot(df['epoch'], df['HR'], label='HR (Hit Ratio)', marker='o', linestyle='-', color='tab:blue')
-    plt.plot(df['epoch'], df['NDCG'], label='NDCG', marker='x', linestyle='--', color='tab:orange')
+    plt.plot(df['epoch'], df['HR'], label='HR (Hit Ratio)', linestyle='-', color='tab:blue')
+    plt.plot(df['epoch'], df['NDCG'], label='NDCG', linestyle='--', color='tab:orange')
     plt.xlabel('Epoch', fontsize=12)
     plt.ylabel('Performance Metrics', fontsize=12)
     plt.title('Hit Ratio (HR) and NDCG vs. Epoch', fontsize=14)
@@ -146,12 +146,12 @@ def generate_output_files(df, output_folder):
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
     plt.savefig(os.path.join(output_folder, 'performance_metrics_hr_ndcg.png'))
-    plt.close() # Close the figure to free memory
+    plt.close()
 
     # --- Plot 2: Loss Metrics (Train and Eval AVGLoss) ---
     plt.figure(figsize=(10, 6))
-    plt.plot(df['epoch'], df['Train_Loss'], label='Train AVGLoss (FINAL)', marker='s', linestyle='-', color='tab:red')
-    plt.plot(df['epoch'], df['Eval_Loss'], label='Eval AVGLoss (FINAL)', marker='D', linestyle='--', color='tab:green')
+    plt.plot(df['epoch'], df['Train_Loss'], label='Train AVGLoss (FINAL)', linestyle='-', color='tab:red')
+    plt.plot(df['epoch'], df['Eval_Loss'], label='Eval AVGLoss (FINAL)', linestyle='--', color='tab:green')
     plt.xlabel('Epoch', fontsize=12)
     plt.ylabel('Average Loss', fontsize=12)
     plt.title('Training and Evaluation Loss vs. Epoch', fontsize=14)
@@ -162,17 +162,21 @@ def generate_output_files(df, output_folder):
     plt.close()
 
     # --- Plot 3: Learning Rate ---
-    plt.figure(figsize=(10, 6))
-    plt.plot(df['epoch'], df['LR'], label='Learning Rate', marker='^', linestyle='-', color='tab:purple')
-    plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Learning Rate', fontsize=12)
-    plt.title('Learning Rate vs. Epoch', fontsize=14)
-    plt.legend()
-    plt.grid(True, linestyle=':', alpha=0.6)
-    plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_folder, 'learning_rate.png'))
-    plt.close()
+    if df['LR'].notna().any():
+        plt.figure(figsize=(10, 6))
+        plt.plot(df['epoch'], df['LR'], label='Learning Rate', linestyle='-', color='tab:purple')
+        plt.xlabel('Epoch', fontsize=12)
+        plt.ylabel('Learning Rate', fontsize=12)
+        plt.title('Learning Rate vs. Epoch', fontsize=14)
+        plt.legend()
+        plt.grid(True, linestyle=':', alpha=0.6)
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_folder, 'learning_rate.png'))
+        plt.close()
+        print(f"Plot saved: learning_rate.png")
+    else:
+        print("Note: Learning Rate plot skipped as no LR data was extracted.")
     
     print("\n--- Output Files Generated Successfully ---")
     print(f"Check the folder: {os.path.abspath(output_folder)}")
@@ -186,12 +190,16 @@ def main():
         description="Extracts model training metrics (HR, NDCG, Loss, LR) from a log file and saves them to a CSV and PNG plots.",
         formatter_class=argparse.RawTextHelpFormatter
     )
-    # By default, positional arguments (like these) are mandatory.
+    
+    # ----------------------------------------------------------------------
+    # UPDATED ARGPARSER CONFIGURATION (using flags and required=True)
+    # ----------------------------------------------------------------------
     parser.add_argument(
         '-f',
         '--log_file_path', 
         type=str, 
         dest="log_file_path",
+        required=True, # Explicitly makes this flagged argument mandatory
         help="Path to the model training log file (e.g., 'training_log.txt'). This is a mandatory argument."
     )
     parser.add_argument(
@@ -199,8 +207,10 @@ def main():
         '--output_folder', 
         dest="output_folder",
         type=str, 
+        required=True, # Explicitly makes this flagged argument mandatory
         help="Path to the folder where output files (CSV, PNGs) will be saved (e.g., 'metrics_output'). This is a mandatory argument."
     )
+    # ----------------------------------------------------------------------
 
     args = parser.parse_args()
 
