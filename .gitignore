@@ -170,3 +170,4 @@ artifacts
 test_*.py
 dataset
 .vscode
+*.txt

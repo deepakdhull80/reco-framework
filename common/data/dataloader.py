@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 
 class DataLoaderType:
     SIMPLE: str = 'simple'
+    DISTRIBUTED: str = 'distributed'
+
 
 class DataLoaderConfig(BaseModel):
     name: str
@@ -32,6 +34,12 @@ class SimpleDataLoaderConfig(DataLoaderConfig):
         assert len(files) != 0, "File not found: {}".format(path)
         
         return files
+
+
+class DistributedDataLoaderConfig(SimpleDataLoaderConfig):
+    """Configuration for distributed dataloader."""
+    name: str = 'distributed'
+
 
 
 class DataLoaderStrategy:

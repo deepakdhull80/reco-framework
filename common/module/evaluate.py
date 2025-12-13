@@ -129,7 +129,7 @@ def generate_recommendations(model_path, meta_path, val_df_path, dir_path, devic
 
         recent_watch = [original_item_to_metadata[inverse_item_map[j.cpu().item()]] for j in history_feature[i][:label_idx][-5:]]
         factual_item = original_item_to_metadata[inverse_item_map[label]]
-
+        
         recommendation = {
             "idx": i,
             "recent_watch": recent_watch,
@@ -140,7 +140,7 @@ def generate_recommendations(model_path, meta_path, val_df_path, dir_path, devic
                     "metadata": original_item_to_metadata[inverse_item_map[item.item()]],
                     "score": score.item()
                 }
-                for score, item in zip(scores, items)
+                for score, item in zip(scores, items) if item.item() in inverse_item_map
             ]
         }
         print(pprint.pformat(recommendation, compact=True).replace("'",'"'))

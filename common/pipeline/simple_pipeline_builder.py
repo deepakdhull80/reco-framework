@@ -9,8 +9,9 @@ from common.module import generate_recommendations
 
 class SimpleTrainerPipeline(TrainerPipeline):
     
-    def __init__(self,*args, **kwargs):
+    def __init__(self, *args, **kwargs):
         self.artifact_dir = kwargs.get('artifact_dir', 'artifacts')
+        self.accelerator = kwargs.get('accelerator')
         super().__init__(*args, **kwargs)
     
     
@@ -19,25 +20,60 @@ class SimpleTrainerPipeline(TrainerPipeline):
         train_dl, val_dl = self.data_loader_strategy.get_dataloader()
         
         # init model
+        # Note: model_builder.build returns a model. 
+        # With Accelerate, we don't necessarily need to move it to device manually if we prepare it later.
+        # But for 'TwoTower' or others, they might need device during build? 
+        # Usually build(device) implies moving it. 
+        # Accelerator.prepare will move it again if needed.
         model = self.model_builder.build(device=self.device)
-        model.to(self.device)
-        # Start Training
-        self.train(train_dl, val_dl, model)
-        self.persist_data_sample(train_dl, f"{self.artifact_dir}/train.npz")
-        self.persist_data_sample(val_dl, f"{self.artifact_dir}/val.npz")
-        SimpleTrainerPipeline.export_model(self.artifact_dir, model, None, None, training_done=True)
         
-        generate_recommendations(
-            model_path=f"{self.artifact_dir}/model_scripted_best.pt",
-            meta_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/mappings.npz",
-            val_df_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/val.pq",
-            dir_path=f"{self.artifact_dir}/recommendations",
-            device=model.device,
-            top_k=5,
-            max_samples=50
-        )
+        # Start Training
+        self.training_strategy.fit(train_dl, val_dl, model)
+        
+        # Retrieve the potentially wrapped/trained model from strategy if available
+        if hasattr(self.training_strategy, 'get_trained_model'):
+            model = self.training_strategy.get_trained_model()
+
+        # Only save artifacts on main process
+        # Use accelerator.is_main_process if available.
+        is_main = self.accelerator.is_main_process if self.accelerator else True
+
+        if is_main:
+            self.persist_data_sample(train_dl, f"{self.artifact_dir}/train.npz")
+            self.persist_data_sample(val_dl, f"{self.artifact_dir}/val.npz")
+            
+            # Unwrap model for export if accelerator is present
+            if self.accelerator:
+                unwrapped_model = self.accelerator.unwrap_model(model)
+            else:
+                unwrapped_model = model
+
+            SimpleTrainerPipeline.export_model(self.artifact_dir, unwrapped_model, None, None, training_done=True)
+            
+            # Note: generate_recommendations might need the model on a specific device
+            # unwrapped_model might be on CPU or GPU.
+            # Passing device to generate_recommendations.
+            
+            generate_recommendations(
+                model_path=f"{self.artifact_dir}/model_scripted_best.pt", # Ideally use the just exported one?
+                # export_model saves 'model_scripted_{timestamp}.pt' if training_done=True
+                # But here we hardcoded 'model_scripted_best.pt' in the generate call?
+                # This refers to the 'best' model saved during training (in strategy).
+                # Strategy saves 'model_scripted_best.pt'.
+                meta_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/mappings.npz",
+                val_df_path=f"{self.data_loader_strategy.pipeline_cfg.data.base_path}/val.pq",
+                dir_path=f"{self.artifact_dir}/recommendations",
+                device=self.device, # Use the device string passed to pipeline
+                top_k=5,
+                max_samples=50
+            )
+        
+        # Synchronize all processes before finishing
+        if self.accelerator:
+            self.accelerator.wait_for_everyone()
         
         return
+
 
     def train(
             self,
@@ -59,9 +95,13 @@ class SimpleTrainerPipeline(TrainerPipeline):
         """
         # Get the first batch from the dataloader
         try:
+            # If dl is prepared by Accelerate, it might be an accelerator dataloader
+            # which we can iterate.
             first_batch = next(iter(dl))
         except StopIteration:
-            raise ValueError("The dataloader is empty. Cannot persist data sample.")
+            # raise ValueError("The dataloader is empty. Cannot persist data sample.")
+             print(f"Warning: The dataloader is empty. Cannot persist data sample to {path}.")
+             return
 
         # Convert the batch to a dictionary of NumPy arrays
         batch_data = {}
@@ -109,15 +149,14 @@ class SimpleTrainerPipeline(TrainerPipeline):
         # Save the scripted model
         model_path = os.path.join(export_dir, f"model_scripted_{state}.pt")
         
-        # dummy_input = {"history_feature": torch.randint(0, 100, (1, 200))}
-        # traced_model = torch.jit.trace(model, (dummy_input, torch.tensor([False]).view(1, -1), ))
-        # traced_model.save(model_path)
         device = model.device
+        # Move to CPU for scripting/saving
         model = model.to("cpu")
         scripted_model = torch.jit.script(model)  # Script the model
         torch.jit.save(scripted_model, model_path)
         print(f"Scripted model exported to {model_path}")
         
+        # Restore device
         model.to(device)
 
         # Save the evaluation results

@@ -122,13 +122,33 @@ class FeatureConfig(BaseModel):
                 padding_key = feature.padding_key
                 arr = []
                 for row in value:
+                    if isinstance(row, str):
+                         # Try to parse stringified list
+                         import ast
+                         try:
+                             row = ast.literal_eval(row)
+                         except:
+                             row = [int(x) for x in row.strip('[]').split(',')]
+
                     if isinstance(row, np.ndarray):
                         row = row.tolist()
+                    
+                    if not isinstance(row, list):
+                        # Fallback or error
+                        # If it's a scalar, make it a list
+                        row = [row]
+
                     delta = max(0, max_length - len(row))
                     if pad_at_end:
-                        row.extend([padding_key] * delta)
+                        if isinstance(padding_key, list):
+                            row.extend(padding_key * delta) 
+                        else:
+                            row.extend([padding_key] * delta)
                     else:
-                        row = [padding_key] * delta + row
+                        if isinstance(padding_key, list):
+                            row = padding_key * delta + row
+                        else:
+                            row = [padding_key] * delta + row
                     row = np.array(row)
                     row = row[:max_length]
                     arr.append(row)
