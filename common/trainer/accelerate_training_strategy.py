@@ -27,6 +27,10 @@ class AccelerateTrainingStrategy(TrainingStrategy):
         # Prepare everything with accelerator
         # Note: If optimizers are None (e.g. sparse optimizer not used), we shouldn't pass None to prepare
         prepare_args = [model, self.optimizer, train_dl, val_dl]
+
+        train_step_fn = model.train_step
+        val_step_fn = model.val_step
+
         if self.sparse_optimizer is not None:
             prepare_args.append(self.sparse_optimizer)
             if self.sparse_scheduler is not None:
@@ -57,8 +61,8 @@ class AccelerateTrainingStrategy(TrainingStrategy):
         g_ndcg = 0
         for epoch in range(self.trainer_config.epochs):
             logger.info("Training Epoch %d" % epoch)
-            self.train(epoch, train_dl, model)
-            self.val(epoch, val_dl, model)
+            self.train(epoch, train_dl, model, train_step_fn)
+            self.val(epoch, val_dl, model, val_step_fn)
             
             # For evaluation, we ideally want to run on all processes and average, 
             # or just run on main process if data fits. 
@@ -160,7 +164,7 @@ class AccelerateTrainingStrategy(TrainingStrategy):
             self.optimizer.zero_grad()
             self._optimizer_initialized = True
         
-    def train(self, epoch, train_dl, model: nn.Module):
+    def train(self, epoch, train_dl, model: nn.Module, train_step_fn):
         loss = 0
         metrics = defaultdict(int)
         metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
@@ -185,7 +189,7 @@ class AccelerateTrainingStrategy(TrainingStrategy):
                 self.sparse_optimizer.zero_grad()
             
             # Forward
-            _loss, _metrics = model.train_step(batch)
+            _loss, _metrics = train_step_fn(batch)
             
             # Backward - use accelerator
             self.accelerator.backward(_loss)
@@ -222,7 +226,7 @@ class AccelerateTrainingStrategy(TrainingStrategy):
 
 
     @torch.no_grad()
-    def val(self, epoch, val_dl, model: nn.Module):
+    def val(self, epoch, val_dl, model: nn.Module, val_step_fn):
         loss = 0
         metrics = defaultdict(int)
         metric_history = defaultdict(lambda: deque(maxlen=self.aggregate_k_steps))
@@ -231,7 +235,7 @@ class AccelerateTrainingStrategy(TrainingStrategy):
         num_batches = 0
 
         for idx, batch in enumerate(val_dl):
-            _loss, _metrics = model.val_step(batch)
+            _loss, _metrics = val_step_fn(batch)
             _loss = _loss.item()
             metrics, loss = self.update_metrics(idx, metrics, _metrics, _loss, metric_history)
             num_batches += 1
