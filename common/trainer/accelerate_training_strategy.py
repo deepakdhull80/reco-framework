@@ -184,19 +184,21 @@ class AccelerateTrainingStrategy(TrainingStrategy):
                 logger.error(f"Error during training: {e}")
                 raise
             
-            self.optimizer.zero_grad()
-            if self.sparse_optimizer is not None:
-                self.sparse_optimizer.zero_grad()
+            with self.accelerator.accumulate(model):
+                with self.accelerator.autocast():
+                    # Forward
+                    _loss, _metrics = train_step_fn(batch)
             
-            # Forward
-            _loss, _metrics = train_step_fn(batch)
+                    # Backward - use accelerator
+                    self.accelerator.backward(_loss)
             
-            # Backward - use accelerator
-            self.accelerator.backward(_loss)
-            
-            self.optimizer.step()
-            if self.sparse_optimizer is not None:
-                self.sparse_optimizer.step()
+                    self.optimizer.step()
+                    if self.sparse_optimizer is not None:
+                        self.sparse_optimizer.step()
+                    
+                    self.optimizer.zero_grad()
+                    if self.sparse_optimizer is not None:
+                        self.sparse_optimizer.zero_grad()
             
             _loss = _loss.item() # Accelerate handles device sync if needed? .item() triggers sync usually
             metrics, loss = self.update_metrics(idx, metrics, _metrics, _loss, metric_history)
