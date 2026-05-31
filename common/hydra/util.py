@@ -7,6 +7,9 @@ from hydra.plugins.search_path_plugin import SearchPathPlugin
 class HydraConfigsSearchPathPlugin(SearchPathPlugin):
     def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
         search_path.append(
+            provider="bert4rec", path="pkg://hydra-config/runner/bert4rec"
+        )
+        search_path.append(
             provider="train", path="pkg://hydra-config/runner"
         )
 

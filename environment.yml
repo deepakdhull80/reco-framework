@@ -55,3 +55,5 @@ dependencies:
       - typing-inspection==0.4.1
       - tzdata==2025.2
       - accelerate>=0.26.0
+      - pyarrow
+      - ray

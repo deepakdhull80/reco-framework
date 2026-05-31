@@ -1,3 +1,4 @@
+from ast import literal_eval
 import os
 import numpy as np
 import pandas as pd
@@ -92,6 +93,9 @@ def generate_recommendations(model_path, meta_path, val_df_path, dir_path, devic
     val_df = pd.read_parquet(val_df_path)
 
     # Prepare data
+    for col in ['history_feature', 'labels', 'attention_mask']:
+        val_df[col] = val_df[col].map(lambda x: literal_eval(x))
+    
     history_feature = val_df['history_feature'].values
     history_feature = torch.from_numpy(np.array(history_feature.tolist())).to(device)
 

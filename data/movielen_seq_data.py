@@ -374,5 +374,5 @@ if __name__ == "__main__":
     dfs, mappings = generate_dataframe(config)
     np.savez_compressed(f'{path}/mappings.npz', **mappings)
     for df, file in zip(dfs, ['train', 'val', 'test']):
-        df.to_parquet(path + f'/{file}.pq')
+        df.to_parquet(path + f'/{file}.parquet')
     print(f"Generated DataFrame with {len(df)} rows.")

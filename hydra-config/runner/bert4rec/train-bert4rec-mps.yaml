@@ -8,9 +8,10 @@ dataloader:
   mini_batch_size: ${eval:2**8}
   batch_size: ${eval:2**8}
   num_workers: 0  # MPS often has issues with multiprocessing dataloaders, safer to start with 0
+  use_ray: true
 
 trainer:
-  epochs: 2  # Reduced for testing
+  epochs: 100  # Reduced for testing
 
 pipeline_name: simple
 env: pytorch

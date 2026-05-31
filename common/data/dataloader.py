@@ -25,6 +25,8 @@ class DataLoaderConfig(BaseModel):
 
 class SimpleDataLoaderConfig(DataLoaderConfig):
     name: str = 'simple'
+    # If true, use Ray-based lazy dataloader (ray.data) for parquet reads
+    use_ray: bool = False
     
     def get_file_paths(self, path: str, file_format: str) -> List:
         if not os.path.exists(path):
@@ -66,9 +68,18 @@ class SimpleDataLoaderStrategy(DataLoaderStrategy):
         self.dataloader_config = pipeline_cfg.dataloader
     
     def get_generator(self):
-        from common.data.data_generator import SimpleDataGenerator
-        
-        return SimpleDataGenerator('train', self.pipeline_cfg), SimpleDataGenerator('val', self.pipeline_cfg)
+        # Lazily choose generator implementation. Import inside method to avoid import cycles.
+        if getattr(self.pipeline_cfg.dataloader, 'use_ray', False):
+            try:
+                from common.data.ray_data_generator import RayDataGenerator
+                return RayDataGenerator('train', self.pipeline_cfg), RayDataGenerator('val', self.pipeline_cfg)
+            except Exception:
+                # Fall back to simple generator if ray implementation not available
+                from common.data.data_generator import SimpleDataGenerator
+                return SimpleDataGenerator('train', self.pipeline_cfg), SimpleDataGenerator('val', self.pipeline_cfg)
+        else:
+            from common.data.data_generator import SimpleDataGenerator
+            return SimpleDataGenerator('train', self.pipeline_cfg), SimpleDataGenerator('val', self.pipeline_cfg)
     
     def get_dataloader(self)-> Tuple[DataLoader, DataLoader]:
         train_gen, val_gen = self.get_generator()

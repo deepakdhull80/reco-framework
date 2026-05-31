@@ -93,7 +93,7 @@ def main_fn(cfg: DictConfig) -> None:
     # Default to no mixed precision unless specified
     # We could add a 'mixed_precision' field to PipelineConfig if needed, but for now we trust env or default.
     # Note: If mixed_precision is not passed, it can still be enabled via `accelerate config` or CLI args.
-    accelerator = Accelerator()
+    accelerator = Accelerator(cpu=pipeline_cfg.device == 'cpu')
     
     if accelerator.is_main_process:
         print(pipeline_cfg)

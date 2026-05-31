@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from accelerate import Accelerator
 
+from common.constants import ModelType
 from common.trainer.training_strategy import TrainingStrategy
 from common.module.evaluate import evaluate
 from common.pipeline.simple_pipeline_builder import SimpleTrainerPipeline
@@ -59,6 +60,7 @@ class AccelerateTrainingStrategy(TrainingStrategy):
         self.model = model
 
         g_ndcg = 0
+        g_loss = float('inf')
         for epoch in range(self.trainer_config.epochs):
             logger.info("Training Epoch %d" % epoch)
             self.train(epoch, train_dl, model, train_step_fn)
@@ -73,18 +75,25 @@ class AccelerateTrainingStrategy(TrainingStrategy):
             # Actually evaluate() calculates HR/NDCG on the local slice.
             # We can use a simplified approach: just run evaluate as is, 
             # but we need to handle the metric aggregation if we want the "global" best model.
+            if self.model_config.type == ModelType.RETRIEVAL:
+                hr, ndcg = self._distributed_evaluate(model, val_dl)
+                if self.accelerator.is_main_process:
+                    if g_ndcg < ndcg:
+                        g_ndcg = ndcg
+                        logger.info(f"Best NDCG: {g_ndcg}")
+                        # Save the model state
+                        # Unwrap model before saving
+                        unwrapped_model = self.accelerator.unwrap_model(model)
+                        SimpleTrainerPipeline.export_model(self.artifact_dir, unwrapped_model, None, None, training_done=False)
+                    logger.info(f"\nEval HR: {hr}, NDCG: {ndcg}")
             
-            hr, ndcg = self._distributed_evaluate(model, val_dl)
-            
-            if self.accelerator.is_main_process:
-                if g_ndcg < ndcg:
-                    g_ndcg = ndcg
-                    logger.info(f"Best NDCG: {g_ndcg}")
-                    # Save the model state
-                    # Unwrap model before saving
+            else:
+                if loss < g_loss and self.accelerator.is_main_process:
+                    g_loss = loss
+                    logger.info(f"Best Loss: {g_loss}")
                     unwrapped_model = self.accelerator.unwrap_model(model)
                     SimpleTrainerPipeline.export_model(self.artifact_dir, unwrapped_model, None, None, training_done=False)
-                logger.info(f"\nEval HR: {hr}, NDCG: {ndcg}")
+                    
             
             self.scheduler.step()
             if self.sparse_scheduler is not None:
